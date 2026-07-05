@@ -135,7 +135,7 @@ gmp_task_status_t tsk_blink(gmp_task_t* tsk)
 
     gmp_base_print(TEXT_STRING("Hello World!\r\n"));
 
-    static fast_gt led_stat = 0;
+    static fast_gt led_stat = 0;//定义了一个全局变量，初值为0，访问权限仅限此函数（非阻塞任务）
     if (led_stat == 0)
     {
         led_stat = 1;

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Project Version="3" Minor="2" Path="E:/lib/gmp_pro/tools/iris_fpga_proj/EG4S_280039C">
+<Project Version="3" Minor="2" Path="D:/gmp_pro/tools/iris_fpga_proj/EG4S_280039C">
     <Project_Created_Time></Project_Created_Time>
     <TD_Version>6.2.178840</TD_Version>
     <UCode>01100011</UCode>
@@ -9,6 +9,9 @@
         <Device>EG4S20NG88</Device>
         <Speed></Speed>
     </HardWare>
+    <MiscSettings>
+        <Setting Key="farm" Val="disable" />
+    </MiscSettings>
     <Source_Files>
         <Verilog>
             <File Path="al_ip/clock_manager.v">

@@ -46,7 +46,7 @@ void clear_all_controllers();
 // controller process
 
 // periodic callback function things.
-GMP_STATIC_INLINE void ctl_dispatch(void)
+GMP_STATIC_INLINE void ctl_dispatch(void)//对于静态内联的解释：就地展开，不浪费控制时间，节省了函数调用和返回的时间
 {
 
 }
