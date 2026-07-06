@@ -30,7 +30,6 @@ GMP_STATIC_INLINE void ctl_input_callback(void)
     static fast_gt adc_init_done = 0;
     static adc_channel_t dac_a_adc;
     static adc_gt dac_a_raw = 0;
-    static ctrl_gt dac_a_pu = 0;
 
     if (!adc_init_done)
     {
@@ -56,6 +55,9 @@ GMP_STATIC_INLINE void ctl_output_callback(void)
 
     //1.65V+1.65V/2 SIN(100*2\pi*t)
     DAC_setShadowValue(IRIS_DACA_BASE, ctl_sin(output_signal)* 1024 + 2048);
+
+    ctrl_gt lead_out = ctl_sat(dac_a_lead_pu, 1.0f, -1.0f);
+    DAC_setShadowValue(IRIS_DACB_BASE, lead_out * 1024 + 2048);
 
 }
 

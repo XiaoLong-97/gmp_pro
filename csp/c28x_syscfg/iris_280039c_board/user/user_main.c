@@ -187,6 +187,8 @@ void init(void) GMP_NO_OPT_SUFFIX
     // init scheduler
     gmp_scheduler_init(&sched);
 
+    ctl_init();
+
     for (i = 0; i < sizeof(tasks) / sizeof(gmp_task_t); ++i)
         gmp_scheduler_add_task(&sched, &tasks[i]);
 
