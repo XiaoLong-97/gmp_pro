@@ -57,7 +57,13 @@ GMP_STATIC_INLINE void ctl_output_callback(void)
     DAC_setShadowValue(IRIS_DACA_BASE, ctl_sin(output_signal)* 1024 + 2048);
 
     ctrl_gt lead_out = ctl_sat(dac_a_lead_pu, 1.0f, -1.0f);
-    DAC_setShadowValue(IRIS_DACB_BASE, lead_out * 1024 + 2048);
+    DAC_setShadowValue(IRIS_DACB_BASE, lead_out * 1024 + 2048);//输出经过超前补偿的波形
+
+    EPWM_setCounterCompareValue(
+        IRIS_EPWM1_BASE,
+        EPWM_COUNTER_COMPARE_A,
+        dac_a_lead_pwm_cmp
+    );//硬件输出
 
 }
 

@@ -31,7 +31,7 @@
 #define CONTROLLER_FREQUENCY (20e3)
 
 // PWM depth
-#define CTRL_PWM_CMP_MAX (2500 - 1)
+#define CTRL_PWM_CMP_MAX (3000 - 1)//符合当前硬件
 
 // PWM dead band
 #define CTRL_PWM_DEADBAND_CMP (100)

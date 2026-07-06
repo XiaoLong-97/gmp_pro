@@ -29,6 +29,9 @@
 ctl_lead_t dac_a_lead;
 ctrl_gt dac_a_pu = 0;
 ctrl_gt dac_a_lead_pu = 0;
+pwm_channel_t dac_a_lead_pwm;
+ctrl_gt dac_a_lead_duty = 0;
+pwm_gt dac_a_lead_pwm_cmp = 0;
 
 //=================================================================================================
 // CTL initialize routine
@@ -41,6 +44,7 @@ void ctl_init()
             100.0f,
             CONTROLLER_FREQUENCY
         );
+        ctl_init_pwm_channel(&dac_a_lead_pwm, 0, CTRL_PWM_CMP_MAX);
 }
 
 //=================================================================================================
