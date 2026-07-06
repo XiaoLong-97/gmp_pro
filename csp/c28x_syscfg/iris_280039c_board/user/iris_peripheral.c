@@ -110,16 +110,61 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 
     if (key_id != 0)
     {
-        // response key message
-        update_led_content_8byte(dev, led_lut[2], led_lut[0], led_lut[2], led_lut[6], led_lut[20], led_lut[key_id / 10],
-                                 led_lut[key_id % 10], led_lut[20]);
+        fast_gt angle_changed = 0;
 
-        gmp_base_print("Receive Key Message, %d\r\n", key_id);
+        if (key_id == 1)
+        {
+            dac_a_lead_angle_deg -= 5.0f;
+            angle_changed = 1;
+        }
+        else if (key_id == 2)
+        {
+            dac_a_lead_angle_deg += 5.0f;
+            angle_changed = 1;
+        }
+
+        if (angle_changed)
+        {
+            if (dac_a_lead_angle_deg < 0.0f)
+                dac_a_lead_angle_deg = 0.0f;
+
+            if (dac_a_lead_angle_deg > 80.0f)
+                dac_a_lead_angle_deg = 80.0f;
+
+            dac_a_lead_angle_dirty = 1;
+
+            gmp_base_print("Lead angle: %d deg\r\n", (uint16_t)dac_a_lead_angle_deg);
+        }
+        else
+        {
+            gmp_base_print("Key: %d\r\n", key_id);
+        }
     }
 
     return GMP_TASK_DONE;
 }
+gmp_task_status_t tsk_lead_angle_display(gmp_task_t* tsk)
+{
+    uint16_t angle;
 
+    GMP_UNUSED_VAR(tsk);
+
+    angle = (uint16_t)(dac_a_lead_angle_deg + 0.5f);
+
+    update_led_content_8byte(
+        &ht16k33,
+        led_lut[17],
+        led_lut[20],
+        led_lut[(angle / 10) % 10],
+        led_lut[angle % 10],
+        led_lut[22],
+        led_lut[22],
+        led_lut[22],
+        led_lut[22]
+    );
+
+    return GMP_TASK_DONE;
+}
 //=================================================================================================
 // FPGA control function
 

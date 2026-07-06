@@ -27,6 +27,11 @@
 //=================================================================================================
 // global controller variables
 ctl_lead_t dac_a_lead;
+ctl_lead_t dac_a_lead_shadow;
+volatile fast_gt dac_a_lead_active = 0;
+volatile ctrl_gt dac_a_lead_angle_deg = 45.0f;
+volatile fast_gt dac_a_lead_angle_dirty = 0;
+
 ctrl_gt dac_a_pu = 0;
 ctrl_gt dac_a_lead_pu = 0;
 pwm_channel_t dac_a_lead_pwm;
@@ -36,17 +41,41 @@ pwm_gt dac_a_lead_pwm_cmp = 0;
 //=================================================================================================
 // CTL initialize routine
 
+static void ctl_apply_lead_angle(ctl_lead_t* lead_obj)
+{
+    ctl_init_lead_form3(lead_obj,dac_a_lead_angle_deg * CTL_PARAM_CONST_PI / 180.0f,100.0f,CONTROLLER_FREQUENCY
+    );
+}
 void ctl_init()
 {
-        ctl_init_lead_form3(
-            &dac_a_lead,
-            CTL_PARAM_CONST_PI / 4.0f,
-            100.0f,
-            CONTROLLER_FREQUENCY
-        );
-        ctl_init_pwm_channel(&dac_a_lead_pwm, 0, CTRL_PWM_CMP_MAX);
+    ctl_apply_lead_angle(&dac_a_lead);
+    ctl_apply_lead_angle(&dac_a_lead_shadow);
+    dac_a_lead_active = 0;
+    dac_a_lead_angle_dirty = 0;
+    ctl_init_pwm_channel(&dac_a_lead_pwm, 0, CTRL_PWM_CMP_MAX);
 }
+gmp_task_status_t tsk_lead_param_update(gmp_task_t* tsk)
+{
+    GMP_UNUSED_VAR(tsk);
 
+    if (dac_a_lead_angle_dirty)
+    {
+        dac_a_lead_angle_dirty = 0;
+
+        if (dac_a_lead_active == 0)
+        {
+            ctl_apply_lead_angle(&dac_a_lead_shadow);
+            dac_a_lead_active = 1;
+        }
+        else
+        {
+            ctl_apply_lead_angle(&dac_a_lead);
+            dac_a_lead_active = 0;
+        }
+    }
+
+    return GMP_TASK_DONE;
+}
 //=================================================================================================
 // CTL endless loop routine
 

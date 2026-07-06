@@ -1,9 +1,9 @@
 /**
  * These arguments were used when this file was generated. They will be automatically applied on subsequent loads
  * via the GUI or CLI. Run CLI with '--help' for additional information on how to override these arguments.
- * @cliArgs --device "F28003x" --part "F28003x_100PZ" --package "100PZ" --context "system" --product "gmp_pro@1.00.00.05" --product "C2000WARE@5.03.00.00"
- * @v2CliArgs --device "TMS320F280039C" --package "100PZ" --context "system" --product "gmp_pro@1.00.00.05" --product "C2000WARE@5.03.00.00"
- * @versions {"tool":"1.21.0+3721"}
+ * @cliArgs --device "F28003x" --part "F28003x_100PZ" --package "100PZ" --context "system" --product "C2000WARE@5.04.00.00" --product "gmp_pro@1.00.00.05"
+ * @v2CliArgs --device "TMS320F280039C" --package "100PZ" --context "system" --product "C2000WARE@5.04.00.00" --product "gmp_pro@1.00.00.05"
+ * @versions {"tool":"1.25.0+4268"}
  */
 
 /**
@@ -223,6 +223,9 @@ divider4.divideValue = 2;
 
 const divider5       = system.clockTree["PLL_REFDIV"];
 divider5.divideValue = 4;
+
+const divider6       = system.clockTree["SYSCLKDIVSEL"];
+divider6.divideValue = 1;
 
 const multiplier1         = system.clockTree["PLL_IMULT"];
 multiplier1.multiplyValue = 80;
@@ -581,11 +584,11 @@ spi1.mode           = "SPI_MODE_CONTROLLER";
 spi1.useInterrupts  = false;
 spi1.useHSMode      = true;
 spi1.bitRate        = 15000000;
-spi1.spi.$assign    = "SPIA";
 spi1.picoQual.$name = "myGPIOQUAL2";
 spi1.pociQual.$name = "myGPIOQUAL3";
 spi1.clkQual.$name  = "myGPIOQUAL4";
 spi1.pteQual.$name  = "myGPIOQUAL5";
+spi1.spi.$assign    = "SPIA";
 
 spi2.$name                   = "IRIS_SPI_OUT";
 spi2.spi.spi_picoPin.$assign = "GPIO60";
