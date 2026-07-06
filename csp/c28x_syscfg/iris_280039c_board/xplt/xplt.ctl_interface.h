@@ -11,6 +11,7 @@
 //
 
 #include <xplt.peripheral.h>
+#include <ctl/component/interface/adc_channel.h>
 
 #ifndef _FILE_CTL_INTERFACE_H_
 #define _FILE_CTL_INTERFACE_H_
@@ -26,7 +27,22 @@ extern "C"
 // Input Callback
 GMP_STATIC_INLINE void ctl_input_callback(void)
 {
+    static fast_gt adc_init_done = 0;
+    static adc_channel_t dac_a_adc;
+    static adc_gt dac_a_raw = 0;
+    static ctrl_gt dac_a_pu = 0;
 
+    if (!adc_init_done)
+    {
+        // Convert 0.825V amplitude around 1.65V bias into -1..1 per-unit.
+        ctl_init_adc_channel(&dac_a_adc, 4.0f, 0.5f, 12, 24);
+        adc_init_done = 1;
+    }
+
+    // Change ADC_CH1_RESULT_BASE / ADC_CH1 if DAC A is wired to another ADC input.
+    dac_a_raw = ADC_readResult(ADC_CH1_RESULT_BASE, ADC_CH1);
+    dac_a_pu = ctl_step_adc_channel(&dac_a_adc, dac_a_raw);
+    GMP_UNUSED_VAR(dac_a_pu);
 }
 
 // Output Callback
@@ -39,7 +55,7 @@ GMP_STATIC_INLINE void ctl_output_callback(void)
     //DAC_setShadowValue(IRIS_DACA_BASE, iabc.control_port.value.dat[phase_C] * 2048 + 2048);
 
     //1.65V+1.65V/2 SIN(100*2\pi*t)
-    DAC_setShadowValue(IRIS_DACB_BASE, ctl_sin(output_signal)* 1024 + 2048);
+    DAC_setShadowValue(IRIS_DACA_BASE, ctl_sin(output_signal)* 1024 + 2048);
 
 }
 

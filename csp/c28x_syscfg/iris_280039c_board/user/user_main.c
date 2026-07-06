@@ -133,7 +133,7 @@ gmp_task_status_t tsk_blink(gmp_task_t* tsk)
 {
     GMP_UNUSED_VAR(tsk);
 
-    gmp_base_print(TEXT_STRING("Hello World!\r\n"));
+    gmp_base_print(TEXT_STRING("Hello World!\r\n"));//灯的颜色每改变一次输出一句hello world
 
     static fast_gt led_stat = 0;//定义了一个全局变量，初值为0，访问权限仅限此函数（非阻塞任务）
     if (led_stat == 0)
