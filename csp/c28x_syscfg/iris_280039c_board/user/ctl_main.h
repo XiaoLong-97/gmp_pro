@@ -71,11 +71,15 @@ GMP_STATIC_INLINE void ctl_dispatch(void)//¶ÔÓÚ¾²Ì¬ÄÚÁªµÄ½âÊÍ£º¾ÍµØÕ¹¿ª£¬²»ÀË·Ñ¿
     ctrl_gt lead_pwm_src;
 
     if (dac_a_lead_active == 0)
+    {
         active_lead = &dac_a_lead;
+    }
     else
+    {
         active_lead = &dac_a_lead_shadow;
-        dac_a_lead_pu = ctl_step_lead(active_lead, dac_a_pu);
+    }
 
+    dac_a_lead_pu = ctl_step_lead(active_lead, dac_a_pu);
 
     lead_pwm_src = ctl_sat(dac_a_lead_pu, 1.0f, -1.0f);
     dac_a_lead_duty = (lead_pwm_src + 1.0f) / 2.0f;//[-1,1]Ó³Éäµ½[0,1]

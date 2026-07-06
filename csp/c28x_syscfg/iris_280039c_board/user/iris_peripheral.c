@@ -81,15 +81,22 @@ void update_led_content_8byte(ht16k33_dev_t* dev, uint16_t ch1, uint16_t ch2, ui
 gmp_task_status_t tsk_LED_flush(gmp_task_t* tsk)
 {
     ht16k33_dev_t* dev = (ht16k33_dev_t*)tsk->user_data;
+    static uint16_t err_count = 0;
 
     // fresh LED buffer here.
     ec_gt ret = ht16k33_update_display(dev);
 
-    // if meets error, close this task
     if (ret != GMP_EC_OK)
     {
-        tsk->is_enabled = 0;
+        if (err_count < 5)
+        {
+            gmp_base_print("HT16K33 LED flush error: %d\r\n", ret);
+            err_count += 1;
+        }
+        return GMP_TASK_DONE;
     }
+
+    err_count = 0;
 
     return GMP_TASK_DONE;
 }
@@ -98,15 +105,22 @@ gmp_task_status_t tsk_LED_flush(gmp_task_t* tsk)
 gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 {
     ht16k33_dev_t* dev = (ht16k33_dev_t*)tsk->user_data;
+    static uint16_t err_count = 0;
     fast_gt key_id = 0;
 
     ec_gt ret = ht16k33_read_keys(dev, &key_id);
 
-    // if meets error, close this task
     if (ret != GMP_EC_OK)
     {
-        tsk->is_enabled = 0;
+        if (err_count < 5)
+        {
+            gmp_base_print("HT16K33 key scan error: %d\r\n", ret);
+            err_count += 1;
+        }
+        return GMP_TASK_DONE;
     }
+
+    err_count = 0;
 
     if (key_id != 0)
     {

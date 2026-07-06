@@ -14,6 +14,8 @@
 
 #include <oled_driver.h>
 
+#define ENABLE_OLED_DEBUG 0
+
 ctrl_gt kp, ki, kd;
 
 ctrl_gt ram_range[512];
@@ -147,15 +149,15 @@ gmp_task_status_t tsk_blink(gmp_task_t* tsk)
         gmp_hal_gpio_write(user_led, 1);
     }
 
+#if ENABLE_OLED_DEBUG
     static uint16_t index;
-
     char output_msg[32];
-
     if (flag_init_cmpt == 1)
     {
         sprintf(output_msg, "index: %d C", index++);
         oled_show_str(0,2,output_msg);
     }
+#endif
 
     return GMP_TASK_DONE;
 }
@@ -171,8 +173,8 @@ gmp_task_t tasks[] = {
     {"blink_led", tsk_blink, 1000, 100, 1, NULL},
     {"fpga_test", fpga_test_task, 1000, 600, 1, NULL},
     {"dl_online", tsk_dl_debug_device, 2, 0, 1, NULL},
-    {"flush_key", tsk_key_flush, 100, 10, 1, (void*)&ht16k33},
-    {"flush_led", tsk_LED_flush, 500, 200, 1, (void*)&ht16k33},
+    {"flush_key", tsk_key_flush, 100, 10, 0, (void*)&ht16k33},
+    {"flush_led", tsk_LED_flush, 500, 200, 0, (void*)&ht16k33},
     {"lead_param",  tsk_lead_param_update,  100,  30,  1, NULL},
     {"lead_disp",   tsk_lead_angle_display, 100,  40,  0, NULL},
     {"startup", tsk_startup, 250, 0, 1, NULL},
@@ -229,16 +231,27 @@ gmp_task_status_t tsk_startup(gmp_task_t* tsk)
         ht16k33_init_t ht16k33_init_struct = {.brightness = 15, .blink_rate = 0, .int_enable = 0, .int_act_high = 0};
 
         ec_gt ec = ht16k33_init(&ht16k33, iic_bus, HT16K33_DEFAULT_DEV_ADDR, &ht16k33_init_struct);
+        gmp_base_print("HT16K33 init ec = %d\r\n", ec);
 
         if (ec == GMP_EC_OK)
         {
+            tsk_lead_angle_display(NULL);
+            ec = ht16k33_update_display(&ht16k33);
+            gmp_base_print("HT16K33 first display ec = %d\r\n", ec);
+
             sched.task_list[3]->is_enabled = 1;
             sched.task_list[4]->is_enabled = 1;
             sched.task_list[6]->is_enabled = 1;
         }
+        else
+        {
+            beep_on();
+        }
 
+#if ENABLE_OLED_DEBUG
         // init and test the oled.
         oled_init();
+#endif
 
 //        hdc1080_config_reg_t hdc1080_cfg = {.all = 0};
 //        hdc1080_cfg.bits.mode = 1; // continuous acquisition data
@@ -246,7 +259,9 @@ gmp_task_status_t tsk_startup(gmp_task_t* tsk)
 //        hdc1080_init(&hdc1080, iic_bus, HDC1080_I2C_ADDR_DEFAULT, hdc1080_cfg);
 //        hdc1080_trigger_temp_hum_sequence(&hdc1080);
 
+#if ENABLE_OLED_DEBUG
         flag_init_cmpt = 1;
+#endif
 
         // startup process is complete.
         tsk->is_enabled = 0;
