@@ -47,20 +47,18 @@ GMP_STATIC_INLINE void ctl_input_callback(void)
 // Output Callback
 GMP_STATIC_INLINE void ctl_output_callback(void)
 {
-    static uint32_t tick=0;
-    tick+=1;
-    ctrl_gt output_signal=(tick%20000)/20000.0f*100;
-    //EPWM_setCounterCompareValue(IRIS_EPWM1_BASE, EPWM_COUNTER_COMPARE_A, 1500);
-    //DAC_setShadowValue(IRIS_DACA_BASE, iabc.control_port.value.dat[phase_C] * 2048 + 2048);
-
-    //1.65V+1.65V/2 SIN(100*2\pi*t)
-    DAC_setShadowValue(IRIS_DACA_BASE, ctl_sin(output_signal)* 1024 + 2048);
-
-    ctrl_gt lead_out = ctl_sat(dac_a_lead_pu, 1.0f, -1.0f);
-    DAC_setShadowValue(IRIS_DACB_BASE, lead_out * 1024 + 2048);//输出经过超前补偿的波形
-
-    EPWM_setCounterCompareValue(IRIS_EPWM1_BASE,EPWM_COUNTER_COMPARE_A,dac_a_lead_pwm_cmp);//硬件输出
-
+    if (psu_output_enabled)
+    {
+        DAC_setShadowValue(IRIS_DACA_BASE, psu_vset_dac_counts);
+        DAC_setShadowValue(IRIS_DACB_BASE, psu_iset_dac_counts);
+        EPWM_setCounterCompareValue(IRIS_EPWM1_BASE, EPWM_COUNTER_COMPARE_A, dac_a_lead_pwm_cmp);
+    }
+    else
+    {
+        DAC_setShadowValue(IRIS_DACA_BASE, 0);
+        DAC_setShadowValue(IRIS_DACB_BASE, 0);
+        EPWM_setCounterCompareValue(IRIS_EPWM1_BASE, EPWM_COUNTER_COMPARE_A, 0);
+    }
 }
 
 // function prototype

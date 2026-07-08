@@ -184,7 +184,7 @@ void oled_show_char(uint8_t x, uint8_t y_page, uint8_t chr)
  * @brief  Displays a null-terminated string on the character grid.
  * @note   Leverages the highly optimized non-blocking oled_show_char underneath.
  */
-void oled_show_str(uint8_t x, uint8_t y_page, const char *str)
+void oled_show_str(uint8_t x, uint8_t y_page, const char *str)//第一个参数是水平的位置，第二个参数是行数
 {
     uint16_t j = 0;
 

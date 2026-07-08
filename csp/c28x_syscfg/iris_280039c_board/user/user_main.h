@@ -45,7 +45,7 @@ void init(void);
 void mainloop(void);
 void setup_peripheral(void);
 
-gmp_task_status_t tsk_lead_angle_display(gmp_task_t* tsk);
+gmp_task_status_t tsk_psu_display(gmp_task_t* tsk);
 
 //
 // For Controller projects user should implement the following functions
@@ -56,7 +56,7 @@ void ctl_mainloop(void);
 gmp_task_status_t tsk_startup(gmp_task_t* tsk);
 gmp_task_status_t tsk_key_flush(gmp_task_t* tsk);
 gmp_task_status_t tsk_LED_flush(gmp_task_t* tsk);
-gmp_task_status_t fpga_test_task(gmp_task_t* tsk);
+gmp_task_status_t tsk_psu_io(gmp_task_t* tsk);
 
 
 // peripheral function

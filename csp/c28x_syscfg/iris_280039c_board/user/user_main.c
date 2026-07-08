@@ -15,6 +15,7 @@
 #include <oled_driver.h>
 
 #define ENABLE_OLED_DEBUG 0
+#define ENABLE_OLED_UI    1
 
 ctrl_gt kp, ki, kd;
 
@@ -171,12 +172,11 @@ gmp_scheduler_t sched;
 gmp_task_t tasks[] = {
     // name,     task,      period(ms),  init_phase, is_enabled, pParam
     {"blink_led", tsk_blink, 1000, 100, 1, NULL},
-    {"fpga_test", fpga_test_task, 1000, 600, 1, NULL},
+    {"psu_io", tsk_psu_io, 20, 0, 1, NULL},
     {"dl_online", tsk_dl_debug_device, 2, 0, 1, NULL},
-    {"flush_key", tsk_key_flush, 100, 10, 0, (void*)&ht16k33},
-    {"flush_led", tsk_LED_flush, 500, 200, 0, (void*)&ht16k33},
-    {"lead_param",  tsk_lead_param_update,  100,  30,  1, NULL},
-    {"lead_disp",   tsk_lead_angle_display, 100,  40,  0, NULL},
+    {"flush_key", tsk_key_flush, 50, 10, 0, (void*)&ht16k33},
+    {"flush_led", tsk_LED_flush, 100, 200, 0, (void*)&ht16k33},
+    {"psu_disp", tsk_psu_display, 250, 40, 0, NULL},
     {"startup", tsk_startup, 250, 0, 1, NULL},
 };
 
@@ -235,23 +235,23 @@ gmp_task_status_t tsk_startup(gmp_task_t* tsk)
 
         if (ec == GMP_EC_OK)
         {
-            tsk_lead_angle_display(NULL);
+#if ENABLE_OLED_UI
+            // init the OLED UI before the first UI render.
+            oled_init();
+#endif
+            tsk_psu_display(NULL);
             ec = ht16k33_update_display(&ht16k33);
             gmp_base_print("HT16K33 first display ec = %d\r\n", ec);
 
             sched.task_list[3]->is_enabled = 1;
             sched.task_list[4]->is_enabled = 1;
-            sched.task_list[6]->is_enabled = 1;
+            sched.task_list[5]->is_enabled = 1;
         }
         else
         {
             beep_on();
         }
 
-#if ENABLE_OLED_DEBUG
-        // init and test the oled.
-        oled_init();
-#endif
 
 //        hdc1080_config_reg_t hdc1080_cfg = {.all = 0};
 //        hdc1080_cfg.bits.mode = 1; // continuous acquisition data
