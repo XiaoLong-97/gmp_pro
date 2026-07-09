@@ -158,6 +158,9 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_DAC_REF_MV               2500U
 #define PSU_VSET_DACOUT_MAX_MV       2500U
 #define PSU_ISET_DACOUT_MAX_MV       2000U
+#define PSU_DAC_FORCE_TEST           1
+#define PSU_DACA_FORCE_TEST_COUNTS   2048U
+#define PSU_DACB_FORCE_TEST_COUNTS   3276U
 #define PSU_ADC_MAX_COUNTS           4095U
 #define PSU_VFB_FULL_SCALE_MV        10000U
 #define PSU_IFB_FULL_SCALE_MA        100U
@@ -246,6 +249,7 @@ typedef struct
 volatile uint16_t psu_vset_dac_counts = 0;
 volatile uint16_t psu_iset_dac_counts = 0;
 volatile fast_gt psu_output_enabled = 0;
+volatile fast_gt psu_dac_force_test_enabled = 0;
 
 static psu_ui_t psu_ui = {
     PSU_MODE_CV,
@@ -329,17 +333,59 @@ static uint16_t psu_adc_to_scaled(uint16_t raw, uint16_t full_scale)
     return (uint16_t)(((uint32_t)raw * full_scale + (PSU_ADC_MAX_COUNTS / 2U)) / PSU_ADC_MAX_COUNTS);
 }
 
+static psu_edit_t psu_edit_for_mode(psu_mode_t mode)
+{
+    return (mode == PSU_MODE_CV) ? PSU_EDIT_VOLTAGE : PSU_EDIT_CURRENT;
+}
+
+static uint16_t psu_active_vlimit_mv(void)
+{
+    return (psu_ui.mode == PSU_MODE_CC) ? PSU_VSET_MAX_MV : psu_ui.set_mv;
+}
+
+static uint16_t psu_active_ilimit_ma(void)
+{
+    return (psu_ui.mode == PSU_MODE_CV) ? PSU_ISET_MAX_MA : psu_ui.set_ma;
+}
+
 static void psu_sync_dac_globals(void)
 {
-    psu_vset_dac_counts = psu_scale_to_dac(psu_ui.set_mv, PSU_VSET_MAX_MV, PSU_VSET_DACOUT_MAX_MV);
-    psu_iset_dac_counts = psu_scale_to_dac(psu_ui.set_ma, PSU_ISET_MAX_MA, PSU_ISET_DACOUT_MAX_MV);
+#if PSU_DAC_FORCE_TEST
+    psu_vset_dac_counts = PSU_DACA_FORCE_TEST_COUNTS;
+    psu_iset_dac_counts = PSU_DACB_FORCE_TEST_COUNTS;
+    psu_dac_force_test_enabled = 1;
+    psu_output_enabled = 0;
+    return;
+#endif
+
+    psu_dac_force_test_enabled = 0;
+    psu_vset_dac_counts = psu_scale_to_dac(psu_active_vlimit_mv(), PSU_VSET_MAX_MV, PSU_VSET_DACOUT_MAX_MV);
+    psu_iset_dac_counts = psu_scale_to_dac(psu_active_ilimit_ma(), PSU_ISET_MAX_MA, PSU_ISET_DACOUT_MAX_MV);
     psu_output_enabled = (psu_ui.output_on && !psu_ui.alarm_latched) ? 1 : 0;
+}
+
+static void psu_write_dac_outputs(void)
+{
+    DAC_enableOutput(IRIS_DACA_BASE);
+    DAC_enableOutput(IRIS_DACB_BASE);
+
+    if (psu_dac_force_test_enabled || psu_output_enabled)
+    {
+        DAC_setShadowValue(IRIS_DACA_BASE, psu_vset_dac_counts);
+        DAC_setShadowValue(IRIS_DACB_BASE, psu_iset_dac_counts);
+    }
+    else
+    {
+        DAC_setShadowValue(IRIS_DACA_BASE, 0U);
+        DAC_setShadowValue(IRIS_DACB_BASE, 0U);
+    }
 }
 
 static void psu_set_dirty(void)
 {
     psu_ui.dirty = 1;
     psu_sync_dac_globals();
+    psu_write_dac_outputs();
 }
 
 static void psu_toggle_step(void)
@@ -351,15 +397,14 @@ static void psu_toggle_step(void)
 
 static void psu_toggle_edit(void)
 {
-    psu_ui.edit = (psu_ui.edit == PSU_EDIT_VOLTAGE) ? PSU_EDIT_CURRENT : PSU_EDIT_VOLTAGE;
+    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
     psu_entry_reset();
     psu_set_dirty();
 }
-
 static void psu_toggle_mode(void)
 {
     psu_ui.mode = (psu_ui.mode == PSU_MODE_CV) ? PSU_MODE_CC : PSU_MODE_CV;
-    psu_ui.edit = (psu_ui.mode == PSU_MODE_CV) ? PSU_EDIT_VOLTAGE : PSU_EDIT_CURRENT;
+    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
     psu_entry_reset();
     psu_set_dirty();
 }
@@ -390,6 +435,7 @@ static void psu_adjust_selected(int16_t steps)
         return;
 
     psu_entry_reset();
+    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
 
     if (psu_ui.edit == PSU_EDIT_VOLTAGE)
     {
@@ -465,6 +511,8 @@ static void psu_apply_entry(void)
     if (psu_entry_len == 0)
         return;
 
+    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
+
     for (i = 0; i < psu_entry_len; ++i)
     {
         char c = psu_entry_buf[i];
@@ -527,6 +575,8 @@ static void psu_entry_append_digit(uint16_t digit)
 
 static void psu_entry_append_decimal(void)
 {
+    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
+
     if (psu_ui.edit != PSU_EDIT_VOLTAGE)
     {
         psu_toggle_step();
@@ -756,12 +806,13 @@ static void psu_render_led_current(uint16_t ma)
 
 static void psu_render_led(void)
 {
-    if (psu_ui.edit == PSU_EDIT_VOLTAGE)
+    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
+
+    if (psu_ui.mode == PSU_MODE_CV)
         psu_render_led_voltage(psu_ui.set_mv);
     else
         psu_render_led_current(psu_ui.set_ma);
 }
-
 static void psu_oled_show_line(uint8_t y_page, const char* text)
 {
 #if PSU_ENABLE_OLED_UI
@@ -787,6 +838,12 @@ static void psu_render_oled(void)
 #if PSU_ENABLE_OLED_UI
     static fast_gt oled_cleared = 0;
     char line[24];
+    uint16_t display_mv = psu_active_vlimit_mv();
+    uint16_t display_ma = psu_active_ilimit_ma();
+    const char* voltage_label = (psu_ui.mode == PSU_MODE_CC) ? "Ulim" : "Uset";
+    const char* current_label = (psu_ui.mode == PSU_MODE_CV) ? "Ilim" : "Iset";
+
+    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
 
     if (!oled_cleared)
     {
@@ -799,15 +856,15 @@ static void psu_render_oled(void)
             (psu_ui.step == PSU_STEP_FINE) ? "FINE" : "COARSE");
     psu_oled_show_line(0, line);
 
-    sprintf(line, "Uset %2u.%1uV", (unsigned int)(psu_ui.set_mv / 1000U),
-            (unsigned int)((psu_ui.set_mv % 1000U) / 100U));
+    sprintf(line, "%s %2u.%1uV", voltage_label, (unsigned int)(display_mv / 1000U),
+            (unsigned int)((display_mv % 1000U) / 100U));
     psu_oled_show_line(1, line);
 
     sprintf(line, "Uout %2u.%1uV", (unsigned int)(psu_ui.meas_mv / 1000U),
             (unsigned int)((psu_ui.meas_mv % 1000U) / 100U));
     psu_oled_show_line(2, line);
 
-    sprintf(line, "Iset %3umA", (unsigned int)psu_ui.set_ma);
+    sprintf(line, "%s %3umA", current_label, (unsigned int)display_ma);
     psu_oled_show_line(3, line);
 
     sprintf(line, "Iout %3umA", (unsigned int)psu_ui.meas_ma);
@@ -815,13 +872,12 @@ static void psu_render_oled(void)
 
     if (psu_ui.alarm_latched)
         psu_oled_show_line(6, "ALARM:LIMIT");
-    else if (psu_ui.edit == PSU_EDIT_VOLTAGE)
-        psu_oled_show_line(6, "EDIT:VOLTAGE");
+    else if (psu_ui.mode == PSU_MODE_CV)
+        psu_oled_show_line(6, "EDIT:U SET");
     else
-        psu_oled_show_line(6, "EDIT:CURRENT");
+        psu_oled_show_line(6, "EDIT:I SET");
 #endif
 }
-
 gmp_task_status_t tsk_psu_display(gmp_task_t* tsk)
 {
     GMP_UNUSED_VAR(tsk);
@@ -850,6 +906,7 @@ gmp_task_status_t tsk_psu_io(gmp_task_t* tsk)
     psu_read_feedback();
     psu_check_protection();
     psu_sync_dac_globals();
+    psu_write_dac_outputs();
     psu_sync_fpga();
 
     return GMP_TASK_DONE;

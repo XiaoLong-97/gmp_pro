@@ -64,6 +64,7 @@ extern volatile fast_gt dac_a_lead_angle_dirty;
 extern volatile uint16_t psu_vset_dac_counts;
 extern volatile uint16_t psu_iset_dac_counts;
 extern volatile fast_gt psu_output_enabled;
+extern volatile fast_gt psu_dac_force_test_enabled;
 //=================================================================================================
 // controller process
 

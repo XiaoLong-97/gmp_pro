@@ -47,7 +47,13 @@ GMP_STATIC_INLINE void ctl_input_callback(void)
 // Output Callback
 GMP_STATIC_INLINE void ctl_output_callback(void)
 {
-    if (psu_output_enabled)
+    if (psu_dac_force_test_enabled)
+    {
+        DAC_setShadowValue(IRIS_DACA_BASE, psu_vset_dac_counts);
+        DAC_setShadowValue(IRIS_DACB_BASE, psu_iset_dac_counts);
+        EPWM_setCounterCompareValue(IRIS_EPWM1_BASE, EPWM_COUNTER_COMPARE_A, 0);
+    }
+    else if (psu_output_enabled)
     {
         DAC_setShadowValue(IRIS_DACA_BASE, psu_vset_dac_counts);
         DAC_setShadowValue(IRIS_DACB_BASE, psu_iset_dac_counts);
