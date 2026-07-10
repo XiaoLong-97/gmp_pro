@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <oled_driver.h>
+#include "psu_measurement.h"
 
 // peripheral
 #include <core/dev/display/ht16k33.h>
@@ -155,15 +156,12 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_I_FINE_STEP_MA           1
 #define PSU_I_COARSE_STEP_MA         5
 #define PSU_DAC_MAX_COUNTS           4095U
-#define PSU_DAC_REF_MV               2500U
+#define PSU_DAC_REF_MV               3300U
 #define PSU_VSET_DACOUT_MAX_MV       2500U
 #define PSU_ISET_DACOUT_MAX_MV       2000U
-#define PSU_DAC_FORCE_TEST           1
-#define PSU_DACA_FORCE_TEST_COUNTS   2048U
-#define PSU_DACB_FORCE_TEST_COUNTS   3276U
-#define PSU_ADC_MAX_COUNTS           4095U
-#define PSU_VFB_FULL_SCALE_MV        10000U
-#define PSU_IFB_FULL_SCALE_MA        100U
+#define PSU_DAC_FORCE_TEST           0
+#define PSU_DACA_FORCE_TEST_COUNTS   1551U
+#define PSU_DACB_FORCE_TEST_COUNTS   2482U
 #define PSU_ENTRY_TIMEOUT_MS         4000U
 #define PSU_BUTTON_DEBOUNCE_MS       120U
 #define PSU_GPIO_BUTTON_ACTIVE_LEVEL 0U
@@ -328,11 +326,6 @@ static uint16_t psu_scale_to_dac(uint16_t value, uint16_t full_scale, uint16_t d
     return (uint16_t)(((uint32_t)value * dac_full_scale_counts +
                        (uint32_t)(full_scale / 2U)) / full_scale);
 }
-static uint16_t psu_adc_to_scaled(uint16_t raw, uint16_t full_scale)
-{
-    return (uint16_t)(((uint32_t)raw * full_scale + (PSU_ADC_MAX_COUNTS / 2U)) / PSU_ADC_MAX_COUNTS);
-}
-
 static psu_edit_t psu_edit_for_mode(psu_mode_t mode)
 {
     return (mode == PSU_MODE_CV) ? PSU_EDIT_VOLTAGE : PSU_EDIT_CURRENT;
@@ -715,14 +708,21 @@ static void psu_poll_buttons(void)
 
 static void psu_read_feedback(void)
 {
+    static psu_adc_filter_t voltage_filter = {0U, 0U};
+    static psu_adc_filter_t current_filter = {0U, 0U};
     uint16_t raw_v;
     uint16_t raw_i;
+    uint16_t filtered_v;
+    uint16_t filtered_i;
 
     raw_v = (uint16_t)ADC_readResult(PSU_VFB_ADC_RESULT_BASE, PSU_VFB_ADC_SOC);
     raw_i = (uint16_t)ADC_readResult(PSU_IFB_ADC_RESULT_BASE, PSU_IFB_ADC_SOC);
 
-    psu_ui.meas_mv = psu_adc_to_scaled(raw_v, PSU_VFB_FULL_SCALE_MV);
-    psu_ui.meas_ma = psu_adc_to_scaled(raw_i, PSU_IFB_FULL_SCALE_MA);
+    filtered_v = psu_adc_filter_update(&voltage_filter, raw_v);
+    filtered_i = psu_adc_filter_update(&current_filter, raw_i);
+
+    psu_ui.meas_mv = PSU_ADC_VOUT_MV_FROM_COUNTS(filtered_v);
+    psu_ui.meas_ma = PSU_ADC_IOUT_MA_FROM_COUNTS(filtered_i);
 }
 
 static void psu_trip_alarm(void)
@@ -838,6 +838,7 @@ static void psu_render_oled(void)
 #if PSU_ENABLE_OLED_UI
     static fast_gt oled_cleared = 0;
     char line[24];
+    uint16_t measured_centivolts;
     uint16_t display_mv = psu_active_vlimit_mv();
     uint16_t display_ma = psu_active_ilimit_ma();
     const char* voltage_label = (psu_ui.mode == PSU_MODE_CC) ? "Ulim" : "Uset";
@@ -860,8 +861,9 @@ static void psu_render_oled(void)
             (unsigned int)((display_mv % 1000U) / 100U));
     psu_oled_show_line(1, line);
 
-    sprintf(line, "Uout %2u.%1uV", (unsigned int)(psu_ui.meas_mv / 1000U),
-            (unsigned int)((psu_ui.meas_mv % 1000U) / 100U));
+    measured_centivolts = (uint16_t)((psu_ui.meas_mv + 5U) / 10U);
+    sprintf(line, "Uout %2u.%02uV", (unsigned int)(measured_centivolts / 100U),
+            (unsigned int)(measured_centivolts % 100U));
     psu_oled_show_line(2, line);
 
     sprintf(line, "%s %3umA", current_label, (unsigned int)display_ma);
