@@ -41,5 +41,10 @@ int main(void)
     CHECK(23, psu_ui_cursor_segment(0x86U, 1U, 0U) == 0x06U);
     CHECK(24, psu_ui_cursor_segment(0x06U, 0U, 0U) == 0x06U);
 
+    CHECK(26, psu_ui_cursor_matches(1U, 1U, 1U) == 1U);
+    CHECK(27, psu_ui_cursor_matches(1U, 1U, 0U) == 0U);
+    CHECK(28, psu_ui_cursor_matches(0U, 0U, 0U) == 0U);
+    CHECK(29, PSU_UI_ENTRY_TIMEOUT_MS == 8000U);
+
     return 0;
 }

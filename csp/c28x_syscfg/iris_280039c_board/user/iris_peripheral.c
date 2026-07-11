@@ -166,7 +166,6 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_DAC_FORCE_TEST           0
 #define PSU_DACA_FORCE_TEST_COUNTS   1551U
 #define PSU_DACB_FORCE_TEST_COUNTS   2482U
-#define PSU_ENTRY_TIMEOUT_MS         4000U
 #define PSU_BUTTON_DEBOUNCE_MS       120U
 #define PSU_GPIO_BUTTON_ACTIVE_LEVEL 0U
 #define PSU_OLED_COLUMNS             16U
@@ -463,7 +462,7 @@ static void psu_entry_prepare(void)
 {
     if (psu_ui_entry_should_restart((uint16_t)psu_entry_active, (uint16_t)psu_entry_saturated,
                                     psu_entry_digit_count) ||
-        gmp_base_get_diff_system_tick(psu_entry_tick) > PSU_ENTRY_TIMEOUT_MS)
+        gmp_base_get_diff_system_tick(psu_entry_tick) > PSU_UI_ENTRY_TIMEOUT_MS)
         psu_entry_reset();
 
     psu_entry_active = 1;
@@ -783,9 +782,12 @@ static void psu_render_led_voltage(uint16_t mv)
     uint16_t digit1 = led_lut[whole % 10U] | 0x80U;
     uint16_t digit2 = led_lut[tenth];
 
-    digit0 = psu_ui_cursor_segment(digit0, (cursor == 0U), blink);
-    digit1 = psu_ui_cursor_segment(digit1, (cursor == 1U), blink);
-    digit2 = psu_ui_cursor_segment(digit2, (cursor == 2U), blink);
+    digit0 = psu_ui_cursor_segment(
+        digit0, psu_ui_cursor_matches((uint16_t)psu_entry_active, cursor, 0U), blink);
+    digit1 = psu_ui_cursor_segment(
+        digit1, psu_ui_cursor_matches((uint16_t)psu_entry_active, cursor, 1U), blink);
+    digit2 = psu_ui_cursor_segment(
+        digit2, psu_ui_cursor_matches((uint16_t)psu_entry_active, cursor, 2U), blink);
 
     update_led_content_8byte(
         &ht16k33,
@@ -794,7 +796,7 @@ static void psu_render_led_voltage(uint16_t mv)
         digit0,
         digit1,
         digit2,
-        (psu_ui.mode == PSU_MODE_CV) ? led_lut[12] : led_lut[12],
+        led_lut[22],
         (psu_ui.output_on && !psu_ui.alarm_latched) ? led_lut[0] : led_lut[20],
         psu_ui.alarm_latched ? led_lut[10] : led_lut[22]
     );
@@ -808,9 +810,12 @@ static void psu_render_led_current(uint16_t ma)
     uint16_t digit1 = (ma >= 10U) ? led_lut[(ma / 10U) % 10U] : led_lut[22];
     uint16_t digit2 = led_lut[ma % 10U];
 
-    digit0 = psu_ui_cursor_segment(digit0, (cursor == 0U), blink);
-    digit1 = psu_ui_cursor_segment(digit1, (cursor == 1U), blink);
-    digit2 = psu_ui_cursor_segment(digit2, (cursor == 2U), blink);
+    digit0 = psu_ui_cursor_segment(
+        digit0, psu_ui_cursor_matches((uint16_t)psu_entry_active, cursor, 0U), blink);
+    digit1 = psu_ui_cursor_segment(
+        digit1, psu_ui_cursor_matches((uint16_t)psu_entry_active, cursor, 1U), blink);
+    digit2 = psu_ui_cursor_segment(
+        digit2, psu_ui_cursor_matches((uint16_t)psu_entry_active, cursor, 2U), blink);
 
     update_led_content_8byte(
         &ht16k33,
@@ -819,7 +824,7 @@ static void psu_render_led_current(uint16_t ma)
         digit0,
         digit1,
         digit2,
-        (psu_ui.mode == PSU_MODE_CC) ? led_lut[12] : led_lut[12],
+        led_lut[22],
         (psu_ui.output_on && !psu_ui.alarm_latched) ? led_lut[0] : led_lut[20],
         psu_ui.alarm_latched ? led_lut[10] : led_lut[22]
     );
@@ -885,7 +890,7 @@ static void psu_render_oled(void)
 
     sprintf(line, "%s %2u.%1uV", voltage_label, (unsigned int)(display_mv / 1000U),
             (unsigned int)((display_mv % 1000U) / 100U));
-    if (psu_ui.edit == PSU_EDIT_VOLTAGE && blink)
+    if (psu_ui.edit == PSU_EDIT_VOLTAGE && psu_entry_active && blink)
         line[(cursor == 0U) ? 5U : ((cursor == 1U) ? 6U : 8U)] = '_';
     psu_oled_show_line(1, line);
 
@@ -895,7 +900,7 @@ static void psu_render_oled(void)
     psu_oled_show_line(2, line);
 
     sprintf(line, "%s %3umA", current_label, (unsigned int)display_ma);
-    if (psu_ui.edit == PSU_EDIT_CURRENT && blink)
+    if (psu_ui.edit == PSU_EDIT_CURRENT && psu_entry_active && blink)
         line[5U + cursor] = '_';
     psu_oled_show_line(3, line);
 
@@ -916,7 +921,7 @@ gmp_task_status_t tsk_psu_display(gmp_task_t* tsk)
 {
     GMP_UNUSED_VAR(tsk);
 
-    if (psu_entry_active && gmp_base_get_diff_system_tick(psu_entry_tick) > PSU_ENTRY_TIMEOUT_MS)
+    if (psu_entry_active && gmp_base_get_diff_system_tick(psu_entry_tick) > PSU_UI_ENTRY_TIMEOUT_MS)
         psu_entry_reset();
 
     psu_render_led();
