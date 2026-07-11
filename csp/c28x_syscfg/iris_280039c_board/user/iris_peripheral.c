@@ -192,6 +192,7 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_KEY_DIGIT_9              7U
 #define PSU_KEY_DIGIT_0              21U
 #define PSU_KEY_DECIMAL              22U
+#define PSU_KEY_CONFIRM              14U
 #define PSU_KEY_EDIT_TOGGLE          15U
 #define PSU_KEY_OUTPUT_TOGGLE        16U
 #define PSU_KEY_STEP_TOGGLE          17U
@@ -272,6 +273,7 @@ static fast_gt psu_entry_active = 0;
 static fast_gt psu_entry_decimal_seen = 0;
 static fast_gt psu_entry_saturated = 0;
 static uint16_t psu_entry_digit_count = 0;
+static uint16_t psu_entry_preview = 0;
 static time_gt psu_entry_tick = 0;
 
 static psu_button_t psu_encoder_button = {PSU_ENCODER_BUTTON_GPIO, 1U, 0};
@@ -456,13 +458,16 @@ static void psu_entry_reset(void)
     psu_entry_decimal_seen = 0;
     psu_entry_saturated = 0;
     psu_entry_digit_count = 0;
+    psu_entry_preview = 0;
 }
 
 static void psu_entry_prepare(void)
 {
-    if (psu_ui_entry_should_restart((uint16_t)psu_entry_active, (uint16_t)psu_entry_saturated,
+    if (psu_ui_entry_should_restart((uint16_t)psu_entry_active,
+                                    (uint16_t)psu_entry_saturated,
                                     psu_entry_digit_count) ||
-        gmp_base_get_diff_system_tick(psu_entry_tick) > PSU_UI_ENTRY_TIMEOUT_MS)
+        psu_ui_entry_timed_out((uint16_t)psu_entry_active,
+                               (uint32_t)gmp_base_get_diff_system_tick(psu_entry_tick)))
         psu_entry_reset();
 
     psu_entry_active = 1;
@@ -515,16 +520,32 @@ static void psu_apply_entry(void)
     if (psu_ui.edit == PSU_EDIT_VOLTAGE)
     {
         result = psu_ui_clamp_entry(whole * 1000U + (uint32_t)tenth * 100U, PSU_VSET_MAX_MV);
-        psu_ui.set_mv = result.value;
+        psu_entry_preview = result.value;
         psu_entry_saturated = (fast_gt)result.saturated;
     }
     else
     {
         result = psu_ui_clamp_entry(whole, PSU_ISET_MAX_MA);
-        psu_ui.set_ma = result.value;
+        psu_entry_preview = result.value;
         psu_entry_saturated = (fast_gt)result.saturated;
     }
 
+    psu_ui.dirty = 1;
+}
+
+static void psu_entry_confirm(void)
+{
+    if (!psu_ui_entry_can_commit((uint16_t)psu_entry_active,
+                                 (uint16_t)psu_entry_saturated,
+                                 psu_entry_len))
+        return;
+
+    if (psu_ui.edit == PSU_EDIT_VOLTAGE)
+        psu_ui.set_mv = psu_entry_preview;
+    else
+        psu_ui.set_ma = psu_entry_preview;
+
+    psu_entry_reset();
     psu_set_dirty();
 }
 
@@ -560,7 +581,7 @@ static void psu_entry_append_decimal(void)
     psu_entry_buf[psu_entry_len++] = '.';
     psu_entry_buf[psu_entry_len] = 0;
     psu_entry_decimal_seen = 1;
-    psu_set_dirty();
+    psu_apply_entry();
 }
 
 static void psu_handle_key(fast_gt key_id)
@@ -575,6 +596,9 @@ static void psu_handle_key(fast_gt key_id)
 
     switch (key_id)
     {
+    case PSU_KEY_CONFIRM:
+        psu_entry_confirm();
+        break;
     case PSU_KEY_DECIMAL:
         psu_entry_append_decimal();
         break;
@@ -832,6 +856,8 @@ static void psu_render_led_current(uint16_t ma)
 
 static void psu_render_led(void)
 {
+    uint16_t display_value;
+
     if (psu_ui.alarm_latched)
     {
         update_led_content_8byte(
@@ -840,9 +866,15 @@ static void psu_render_led(void)
             led_lut[22], led_lut[22], led_lut[22], led_lut[22]);
     }
     else if (psu_ui.edit == PSU_EDIT_VOLTAGE)
-        psu_render_led_voltage(psu_ui.set_mv);
+    {
+        display_value = psu_entry_active ? psu_entry_preview : psu_ui.set_mv;
+        psu_render_led_voltage(display_value);
+    }
     else
-        psu_render_led_current(psu_ui.set_ma);
+    {
+        display_value = psu_entry_active ? psu_entry_preview : psu_ui.set_ma;
+        psu_render_led_current(display_value);
+    }
 }
 static void psu_oled_show_line(uint8_t y_page, const char* text)
 {
@@ -870,10 +902,14 @@ static void psu_render_oled(void)
     static fast_gt oled_cleared = 0;
     char line[24];
     uint16_t measured_centivolts;
-    uint16_t display_mv = psu_ui.set_mv;
-    uint16_t display_ma = psu_ui.set_ma;
-    const char* voltage_label = "Uset";
-    const char* current_label = "Iset";
+    uint16_t display_mv = (psu_entry_active && psu_ui.edit == PSU_EDIT_VOLTAGE)
+                              ? psu_entry_preview : psu_ui.set_mv;
+    uint16_t display_ma = (psu_entry_active && psu_ui.edit == PSU_EDIT_CURRENT)
+                              ? psu_entry_preview : psu_ui.set_ma;
+    const char* voltage_label = (psu_entry_active && psu_ui.edit == PSU_EDIT_VOLTAGE)
+                                    ? "Unew" : "Uset";
+    const char* current_label = (psu_entry_active && psu_ui.edit == PSU_EDIT_CURRENT)
+                                    ? "Inew" : "Iset";
     uint16_t cursor = psu_ui_cursor_digit(psu_entry_digit_count, (uint16_t)psu_entry_saturated);
     uint16_t blink = psu_ui_blink_on((uint32_t)gmp_base_get_system_tick());
 
@@ -907,7 +943,9 @@ static void psu_render_oled(void)
     sprintf(line, "Iout %3umA", (unsigned int)psu_ui.meas_ma);
     psu_oled_show_line(4, line);
 
-    if (psu_ui.alarm_reason == PSU_PROTECTION_OVERCURRENT)
+    if (psu_entry_active && psu_entry_saturated)
+        psu_oled_show_line(6, "ENTRY:RANGE ERR");
+    else if (psu_ui.alarm_reason == PSU_PROTECTION_OVERCURRENT)
         psu_oled_show_line(6, "ALARM:OVER I");
     else if (psu_ui.alarm_reason == PSU_PROTECTION_OVERVOLTAGE)
         psu_oled_show_line(6, "ALARM:OVER V");
@@ -921,7 +959,8 @@ gmp_task_status_t tsk_psu_display(gmp_task_t* tsk)
 {
     GMP_UNUSED_VAR(tsk);
 
-    if (psu_entry_active && gmp_base_get_diff_system_tick(psu_entry_tick) > PSU_UI_ENTRY_TIMEOUT_MS)
+    if (psu_ui_entry_timed_out((uint16_t)psu_entry_active,
+                               (uint32_t)gmp_base_get_diff_system_tick(psu_entry_tick)))
         psu_entry_reset();
 
     psu_render_led();

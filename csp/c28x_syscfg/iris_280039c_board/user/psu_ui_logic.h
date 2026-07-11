@@ -5,7 +5,7 @@
 
 #define PSU_UI_ENTRY_DIGITS 3U
 #define PSU_UI_BLINK_HALF_PERIOD_MS 250U
-#define PSU_UI_ENTRY_TIMEOUT_MS 8000U
+#define PSU_UI_ENTRY_TIMEOUT_MS 15000U
 
 typedef struct
 {
@@ -56,6 +56,17 @@ static inline uint16_t psu_ui_cursor_matches(uint16_t entry_active, uint16_t cur
                                               uint16_t position)
 {
     return (entry_active && cursor == position) ? 1U : 0U;
+}
+
+static inline uint16_t psu_ui_entry_timed_out(uint16_t entry_active, uint32_t elapsed_ms)
+{
+    return (entry_active && elapsed_ms > PSU_UI_ENTRY_TIMEOUT_MS) ? 1U : 0U;
+}
+
+static inline uint16_t psu_ui_entry_can_commit(uint16_t entry_active, uint16_t saturated,
+                                                uint16_t entry_length)
+{
+    return (entry_active && !saturated && entry_length > 0U) ? 1U : 0U;
 }
 
 static inline uint16_t psu_ui_cursor_segment(uint16_t segment, uint16_t is_cursor,

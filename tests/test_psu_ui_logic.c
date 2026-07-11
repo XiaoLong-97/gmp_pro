@@ -44,7 +44,15 @@ int main(void)
     CHECK(26, psu_ui_cursor_matches(1U, 1U, 1U) == 1U);
     CHECK(27, psu_ui_cursor_matches(1U, 1U, 0U) == 0U);
     CHECK(28, psu_ui_cursor_matches(0U, 0U, 0U) == 0U);
-    CHECK(29, PSU_UI_ENTRY_TIMEOUT_MS == 8000U);
+    CHECK(29, PSU_UI_ENTRY_TIMEOUT_MS == 15000U);
+    CHECK(30, psu_ui_entry_timed_out(1U, 14999U) == 0U);
+    CHECK(31, psu_ui_entry_timed_out(1U, 15001U) == 1U);
+    CHECK(32, psu_ui_entry_timed_out(0U, 15001U) == 0U);
+
+    CHECK(33, psu_ui_entry_can_commit(1U, 0U, 3U) == 1U);
+    CHECK(34, psu_ui_entry_can_commit(1U, 1U, 3U) == 0U);
+    CHECK(35, psu_ui_entry_can_commit(0U, 0U, 3U) == 0U);
+    CHECK(36, psu_ui_entry_can_commit(1U, 0U, 0U) == 0U);
 
     return 0;
 }
