@@ -193,7 +193,6 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_KEY_DIGIT_0              21U
 #define PSU_KEY_DECIMAL              22U
 #define PSU_KEY_MODE_TOGGLE          14U
-#define PSU_KEY_EDIT_TOGGLE          15U
 #define PSU_KEY_OUTPUT_TOGGLE        16U
 #define PSU_KEY_STEP_TOGGLE          17U
 #define PSU_KEY_CLEAR_ENTRY          18U
@@ -609,9 +608,6 @@ static void psu_handle_key(fast_gt key_id)
         break;
     case PSU_KEY_MODE_TOGGLE:
         psu_toggle_mode();
-        break;
-    case PSU_KEY_EDIT_TOGGLE:
-        psu_toggle_edit();
         break;
     case PSU_KEY_OUTPUT_TOGGLE:
         psu_toggle_output();
