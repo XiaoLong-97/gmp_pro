@@ -11,6 +11,7 @@
 #include "psu_measurement.h"
 #include "psu_protection.h"
 #include "psu_ui_logic.h"
+#include "psu_auto_control.h"
 
 // peripheral
 #include <core/dev/display/ht16k33.h>
@@ -192,7 +193,7 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_KEY_DIGIT_9              7U
 #define PSU_KEY_DIGIT_0              21U
 #define PSU_KEY_DECIMAL              22U
-#define PSU_KEY_MODE_TOGGLE          14U
+#define PSU_KEY_EDIT_TOGGLE          15U
 #define PSU_KEY_OUTPUT_TOGGLE        16U
 #define PSU_KEY_STEP_TOGGLE          17U
 #define PSU_KEY_CLEAR_ENTRY          18U
@@ -332,21 +333,6 @@ static uint16_t psu_scale_to_dac(uint16_t value, uint16_t full_scale, uint16_t d
     return (uint16_t)(((uint32_t)value * dac_full_scale_counts +
                        (uint32_t)(full_scale / 2U)) / full_scale);
 }
-static psu_edit_t psu_edit_for_mode(psu_mode_t mode)
-{
-    return (mode == PSU_MODE_CV) ? PSU_EDIT_VOLTAGE : PSU_EDIT_CURRENT;
-}
-
-static uint16_t psu_active_vlimit_mv(void)
-{
-    return (psu_ui.mode == PSU_MODE_CC) ? PSU_VSET_MAX_MV : psu_ui.set_mv;
-}
-
-static uint16_t psu_active_ilimit_ma(void)
-{
-    return (psu_ui.mode == PSU_MODE_CV) ? PSU_ISET_MAX_MA : psu_ui.set_ma;
-}
-
 static void psu_sync_dac_globals(void)
 {
 #if PSU_DAC_FORCE_TEST
@@ -358,8 +344,8 @@ static void psu_sync_dac_globals(void)
 #endif
 
     psu_dac_force_test_enabled = 0;
-    psu_vset_dac_counts = psu_scale_to_dac(psu_active_vlimit_mv(), PSU_VSET_MAX_MV, PSU_VSET_DACOUT_MAX_MV);
-    psu_iset_dac_counts = psu_scale_to_dac(psu_active_ilimit_ma(), PSU_ISET_MAX_MA, PSU_ISET_DACOUT_MAX_MV);
+    psu_vset_dac_counts = psu_scale_to_dac(psu_ui.set_mv, PSU_VSET_MAX_MV, PSU_VSET_DACOUT_MAX_MV);
+    psu_iset_dac_counts = psu_scale_to_dac(psu_ui.set_ma, PSU_ISET_MAX_MA, PSU_ISET_DACOUT_MAX_MV);
     psu_output_enabled = (psu_ui.output_on && !psu_ui.alarm_latched) ? 1 : 0;
 }
 
@@ -396,14 +382,7 @@ static void psu_toggle_step(void)
 
 static void psu_toggle_edit(void)
 {
-    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
-    psu_entry_reset();
-    psu_set_dirty();
-}
-static void psu_toggle_mode(void)
-{
-    psu_ui.mode = (psu_ui.mode == PSU_MODE_CV) ? PSU_MODE_CC : PSU_MODE_CV;
-    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
+    psu_ui.edit = (psu_ui.edit == PSU_EDIT_VOLTAGE) ? PSU_EDIT_CURRENT : PSU_EDIT_VOLTAGE;
     psu_entry_reset();
     psu_set_dirty();
 }
@@ -434,8 +413,6 @@ static void psu_adjust_selected(int16_t steps)
         return;
 
     psu_entry_reset();
-    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
-
     if (psu_ui.edit == PSU_EDIT_VOLTAGE)
     {
         unit_step = (psu_ui.step == PSU_STEP_FINE) ? PSU_V_FINE_STEP_MV : PSU_V_COARSE_STEP_MV;
@@ -505,8 +482,6 @@ static void psu_apply_entry(void)
     if (psu_entry_len == 0)
         return;
 
-    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
-
     for (i = 0; i < psu_entry_len; ++i)
     {
         char c = psu_entry_buf[i];
@@ -572,8 +547,6 @@ static void psu_entry_append_digit(uint16_t digit)
 
 static void psu_entry_append_decimal(void)
 {
-    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
-
     if (psu_ui.edit != PSU_EDIT_VOLTAGE)
     {
         psu_toggle_step();
@@ -606,8 +579,8 @@ static void psu_handle_key(fast_gt key_id)
     case PSU_KEY_DECIMAL:
         psu_entry_append_decimal();
         break;
-    case PSU_KEY_MODE_TOGGLE:
-        psu_toggle_mode();
+    case PSU_KEY_EDIT_TOGGLE:
+        psu_toggle_edit();
         break;
     case PSU_KEY_OUTPUT_TOGGLE:
         psu_toggle_output();
@@ -726,6 +699,24 @@ static void psu_read_feedback(void)
     psu_ui.meas_ma = PSU_ADC_IOUT_MA_FROM_COUNTS(filtered_i);
 }
 
+static void psu_update_auto_mode(void)
+{
+    psu_mode_t next_mode;
+
+    if (!psu_ui.output_on || psu_ui.alarm_latched)
+        next_mode = PSU_MODE_CV;
+    else
+        next_mode = (psu_mode_t)psu_auto_next_mode((uint16_t)psu_ui.mode,
+                                                   psu_ui.meas_mv, psu_ui.meas_ma,
+                                                   psu_ui.set_mv, psu_ui.set_ma);
+
+    if (next_mode != psu_ui.mode)
+    {
+        psu_ui.mode = next_mode;
+        psu_ui.dirty = 1;
+    }
+}
+
 static void psu_trip_alarm(fast_gt reason)
 {
     psu_ui.output_on = 0;
@@ -742,7 +733,7 @@ static void psu_check_protection(void)
     if (!psu_ui.output_on || psu_ui.alarm_latched)
         return;
 
-    reason = PSU_PROTECTION_REASON(psu_ui.mode, psu_ui.meas_mv, psu_ui.meas_ma);
+    reason = PSU_PROTECTION_REASON(psu_ui.meas_mv, psu_ui.meas_ma);
     if (reason != PSU_PROTECTION_NONE)
         psu_trip_alarm(reason);
 }
@@ -836,8 +827,6 @@ static void psu_render_led_current(uint16_t ma)
 
 static void psu_render_led(void)
 {
-    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
-
     if (psu_ui.alarm_latched)
     {
         update_led_content_8byte(
@@ -845,7 +834,7 @@ static void psu_render_led(void)
             led_lut[10], led_lut[17], led_lut[10], led_lut[23],
             led_lut[22], led_lut[22], led_lut[22], led_lut[22]);
     }
-    else if (psu_ui.mode == PSU_MODE_CV)
+    else if (psu_ui.edit == PSU_EDIT_VOLTAGE)
         psu_render_led_voltage(psu_ui.set_mv);
     else
         psu_render_led_current(psu_ui.set_ma);
@@ -876,14 +865,12 @@ static void psu_render_oled(void)
     static fast_gt oled_cleared = 0;
     char line[24];
     uint16_t measured_centivolts;
-    uint16_t display_mv = psu_active_vlimit_mv();
-    uint16_t display_ma = psu_active_ilimit_ma();
-    const char* voltage_label = (psu_ui.mode == PSU_MODE_CC) ? "Ulim" : "Uset";
-    const char* current_label = (psu_ui.mode == PSU_MODE_CV) ? "Ilim" : "Iset";
+    uint16_t display_mv = psu_ui.set_mv;
+    uint16_t display_ma = psu_ui.set_ma;
+    const char* voltage_label = "Uset";
+    const char* current_label = "Iset";
     uint16_t cursor = psu_ui_cursor_digit(psu_entry_digit_count, (uint16_t)psu_entry_saturated);
     uint16_t blink = psu_ui_blink_on((uint32_t)gmp_base_get_system_tick());
-
-    psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
 
     if (!oled_cleared)
     {
@@ -898,7 +885,7 @@ static void psu_render_oled(void)
 
     sprintf(line, "%s %2u.%1uV", voltage_label, (unsigned int)(display_mv / 1000U),
             (unsigned int)((display_mv % 1000U) / 100U));
-    if (psu_ui.mode == PSU_MODE_CV && blink)
+    if (psu_ui.edit == PSU_EDIT_VOLTAGE && blink)
         line[(cursor == 0U) ? 5U : ((cursor == 1U) ? 6U : 8U)] = '_';
     psu_oled_show_line(1, line);
 
@@ -908,7 +895,7 @@ static void psu_render_oled(void)
     psu_oled_show_line(2, line);
 
     sprintf(line, "%s %3umA", current_label, (unsigned int)display_ma);
-    if (psu_ui.mode == PSU_MODE_CC && blink)
+    if (psu_ui.edit == PSU_EDIT_CURRENT && blink)
         line[5U + cursor] = '_';
     psu_oled_show_line(3, line);
 
@@ -919,7 +906,7 @@ static void psu_render_oled(void)
         psu_oled_show_line(6, "ALARM:OVER I");
     else if (psu_ui.alarm_reason == PSU_PROTECTION_OVERVOLTAGE)
         psu_oled_show_line(6, "ALARM:OVER V");
-    else if (psu_ui.mode == PSU_MODE_CV)
+    else if (psu_ui.edit == PSU_EDIT_VOLTAGE)
         psu_oled_show_line(6, "EDIT:U SET");
     else
         psu_oled_show_line(6, "EDIT:I SET");
@@ -954,6 +941,7 @@ gmp_task_status_t tsk_psu_io(gmp_task_t* tsk)
 
     psu_poll_buttons();
     psu_read_feedback();
+    psu_update_auto_mode();
     psu_check_protection();
     psu_sync_dac_globals();
     psu_write_dac_outputs();
