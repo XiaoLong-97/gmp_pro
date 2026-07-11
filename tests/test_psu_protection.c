@@ -1,0 +1,21 @@
+#include "../csp/c28x_syscfg/iris_280039c_board/user/psu_protection.h"
+
+#define STATIC_ASSERT(name, condition) typedef char static_assert_##name[(condition) ? 1 : -1]
+
+STATIC_ASSERT(cv_100ma_is_safe,
+              PSU_PROTECTION_REASON(PSU_PROTECTION_MODE_CV, 10000U, 100U) == PSU_PROTECTION_NONE);
+STATIC_ASSERT(cv_101ma_trips,
+              PSU_PROTECTION_REASON(PSU_PROTECTION_MODE_CV, 10000U, 101U) == PSU_PROTECTION_OVERCURRENT);
+STATIC_ASSERT(cc_10000mv_is_safe,
+              PSU_PROTECTION_REASON(PSU_PROTECTION_MODE_CC, 10000U, 100U) == PSU_PROTECTION_NONE);
+STATIC_ASSERT(cc_10100mv_trips,
+              PSU_PROTECTION_REASON(PSU_PROTECTION_MODE_CC, 10100U, 100U) == PSU_PROTECTION_OVERVOLTAGE);
+STATIC_ASSERT(cv_ignores_overvoltage,
+              PSU_PROTECTION_REASON(PSU_PROTECTION_MODE_CV, 12000U, 100U) == PSU_PROTECTION_NONE);
+STATIC_ASSERT(cc_ignores_overcurrent,
+              PSU_PROTECTION_REASON(PSU_PROTECTION_MODE_CC, 10000U, 120U) == PSU_PROTECTION_NONE);
+
+int main(void)
+{
+    return 0;
+}

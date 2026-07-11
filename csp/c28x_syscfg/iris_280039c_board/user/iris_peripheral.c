@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <oled_driver.h>
 #include "psu_measurement.h"
+#include "psu_protection.h"
 
 // peripheral
 #include <core/dev/display/ht16k33.h>
@@ -38,8 +39,8 @@ iic_halt iic_bus;
 ht16k33_dev_t ht16k33;
 hdc1080_dev_t hdc1080;
 
-// ¹²Òõ¼«ÊýÂë¹Ü¶ÎÂë±í
-// °üº¬: 0-9, A-F, H, L, P, U, -, ., °µ
+// å…±é˜´æžæ•°ç ç®¡æ®µç è¡¨
+// åŒ…å«: 0-9, A-F, H, L, P, U, -, ., æš—, r
 const unsigned char led_lut[] = {
     0x3F, // 0  (a,b,c,d,e,f)
     0x06, // 1  (b,c)
@@ -52,18 +53,19 @@ const unsigned char led_lut[] = {
     0x7F, // 8  (a,b,c,d,e,f,g)
     0x6F, // 9  (a,b,c,d,f,g)
     0x77, // A  (a,b,c,e,f,g)
-    0x7C, // b  (c,d,e,f,g)  - Í¨³£ÓÃÐ¡Ð´bÇø·ÖÊý×Ö8
+    0x7C, // b  (c,d,e,f,g)  - é€šå¸¸ç”¨å°å†™båŒºåˆ†æ•°å­—8
     0x39, // C  (a,d,e,f)
-    0x5E, // d  (b,c,d,e,g)  - Í¨³£ÓÃÐ¡Ð´dÇø·ÖÊý×Ö0
+    0x5E, // d  (b,c,d,e,g)  - é€šå¸¸ç”¨å°å†™dåŒºåˆ†æ•°å­—0
     0x79, // E  (a,d,e,f,g)
     0x71, // F  (a,e,f,g)
     0x76, // H  (b,c,e,f,g)
     0x38, // L  (d,e,f)
     0x73, // P  (a,b,e,f,g)
     0x3E, // U  (b,c,d,e,f)
-    0x40, // -  (g) - ¸ººÅ»òºá¸Ü
-    0x80, // .  (dp) - Ð¡Êýµã
-    0x00  // ÎÞÏÔÊ¾ (È«Ãð)
+    0x40, // -  (g) - è´Ÿå·æˆ–æ¨ªæ 
+    0x80, // .  (dp) - å°æ•°ç‚¹
+    0x00, // æ— æ˜¾ç¤º (å…¨ç­)
+    0x50  // r  (e,g)
 };
 
 void update_led_content_8byte(ht16k33_dev_t* dev, uint16_t ch1, uint16_t ch2, uint16_t ch3, uint16_t ch4, uint16_t ch5,
@@ -177,7 +179,7 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_OUTPUT_BUTTON_GPIO       IRIS_GPIO5
 #define PSU_EDIT_BUTTON_GPIO         IRIS_GPIO6
 
-// HT16K33 key_id = COM * 13 + K + 1. These values map board labels SW1..SW16.
+// HT16K33 key_id = COM * 13 + K + 1. These values map board labels SW1..SW17.
 #define PSU_KEY_DIGIT_1              8U
 #define PSU_KEY_DIGIT_2              9U
 #define PSU_KEY_DIGIT_3              1U
@@ -191,9 +193,9 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_KEY_DECIMAL              22U
 #define PSU_KEY_MODE_TOGGLE          14U
 #define PSU_KEY_EDIT_TOGGLE          15U
-#define PSU_KEY_OUTPUT_TOGGLE        16U
 #define PSU_KEY_STEP_TOGGLE          17U
 #define PSU_KEY_CLEAR_ENTRY          18U
+#define PSU_KEY_OUTPUT_TOGGLE        19U
 
 #define PSU_VFB_ADC_RESULT_BASE      ADC_CH1_RESULT_BASE
 #define PSU_VFB_ADC_SOC              ADC_CH1
@@ -230,6 +232,7 @@ typedef struct
     psu_step_t step;
     fast_gt output_on;
     fast_gt alarm_latched;
+    fast_gt alarm_reason;
     uint16_t set_mv;
     uint16_t set_ma;
     uint16_t meas_mv;
@@ -255,6 +258,7 @@ static psu_ui_t psu_ui = {
     PSU_STEP_FINE,
     0,
     0,
+    PSU_PROTECTION_NONE,
     5000U,
     50U,
     0,
@@ -407,6 +411,7 @@ static void psu_toggle_output(void)
     if (psu_ui.alarm_latched)
     {
         psu_ui.alarm_latched = 0;
+        psu_ui.alarm_reason = PSU_PROTECTION_NONE;
         psu_ui.output_on = 0;
         beep_off();
     }
@@ -725,27 +730,37 @@ static void psu_read_feedback(void)
     psu_ui.meas_ma = PSU_ADC_IOUT_MA_FROM_COUNTS(filtered_i);
 }
 
-static void psu_trip_alarm(void)
+static void psu_trip_alarm(fast_gt reason)
 {
     psu_ui.output_on = 0;
     psu_ui.alarm_latched = 1;
+    psu_ui.alarm_reason = reason;
     beep_on();
     psu_set_dirty();
 }
 
 static void psu_check_protection(void)
 {
+    fast_gt reason;
+
     if (!psu_ui.output_on || psu_ui.alarm_latched)
         return;
 
-    if (psu_ui.mode == PSU_MODE_CV && psu_ui.meas_ma > PSU_ISET_MAX_MA)
-    {
-        psu_trip_alarm();
-    }
-    else if (psu_ui.mode == PSU_MODE_CC && psu_ui.meas_mv > PSU_VSET_MAX_MV)
-    {
-        psu_trip_alarm();
-    }
+    reason = PSU_PROTECTION_REASON(psu_ui.mode, psu_ui.meas_mv, psu_ui.meas_ma);
+    if (reason != PSU_PROTECTION_NONE)
+        psu_trip_alarm(reason);
+}
+
+static void psu_update_board_leds(void)
+{
+    fast_gt alarm_led_on = 0;
+
+    if (psu_ui.alarm_latched)
+        alarm_led_on = ((gmp_base_get_system_tick() / 250U) & 1U) ? 1 : 0;
+
+    /* The board LEDs are wired to 3.3 V through resistors, so low means on. */
+    gmp_hal_gpio_write(IRIS_LED1, psu_output_enabled ? 0 : 1);
+    gmp_hal_gpio_write(IRIS_LED2, alarm_led_on ? 0 : 1);
 }
 
 static void psu_sync_fpga(void)
@@ -808,7 +823,14 @@ static void psu_render_led(void)
 {
     psu_ui.edit = psu_edit_for_mode(psu_ui.mode);
 
-    if (psu_ui.mode == PSU_MODE_CV)
+    if (psu_ui.alarm_latched)
+    {
+        update_led_content_8byte(
+            &ht16k33,
+            led_lut[10], led_lut[17], led_lut[10], led_lut[23],
+            led_lut[22], led_lut[22], led_lut[22], led_lut[22]);
+    }
+    else if (psu_ui.mode == PSU_MODE_CV)
         psu_render_led_voltage(psu_ui.set_mv);
     else
         psu_render_led_current(psu_ui.set_ma);
@@ -872,8 +894,10 @@ static void psu_render_oled(void)
     sprintf(line, "Iout %3umA", (unsigned int)psu_ui.meas_ma);
     psu_oled_show_line(4, line);
 
-    if (psu_ui.alarm_latched)
-        psu_oled_show_line(6, "ALARM:LIMIT");
+    if (psu_ui.alarm_reason == PSU_PROTECTION_OVERCURRENT)
+        psu_oled_show_line(6, "ALARM:OVER I");
+    else if (psu_ui.alarm_reason == PSU_PROTECTION_OVERVOLTAGE)
+        psu_oled_show_line(6, "ALARM:OVER V");
     else if (psu_ui.mode == PSU_MODE_CV)
         psu_oled_show_line(6, "EDIT:U SET");
     else
@@ -909,6 +933,7 @@ gmp_task_status_t tsk_psu_io(gmp_task_t* tsk)
     psu_check_protection();
     psu_sync_dac_globals();
     psu_write_dac_outputs();
+    psu_update_board_leds();
     psu_sync_fpga();
 
     return GMP_TASK_DONE;

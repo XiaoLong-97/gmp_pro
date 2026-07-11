@@ -171,7 +171,7 @@ gmp_scheduler_t sched;
 // All tasks must be non blocking tasks
 gmp_task_t tasks[] = {
     // name,     task,      period(ms),  init_phase, is_enabled, pParam
-    {"blink_led", tsk_blink, 1000, 100, 1, NULL},
+    {"blink_led", tsk_blink, 1000, 100, 0, NULL},
     {"psu_io", tsk_psu_io, 20, 0, 1, NULL},
     {"dl_online", tsk_dl_debug_device, 2, 0, 1, NULL},
     {"flush_key", tsk_key_flush, 50, 10, 0, (void*)&ht16k33},
