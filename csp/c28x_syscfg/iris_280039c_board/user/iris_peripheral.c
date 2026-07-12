@@ -3,7 +3,6 @@
 #include <gmp_core.h>
 
 // user main header
-#include "ctl_main.h"
 #include "user_main.h"
 #include <stdlib.h>
 #include <stdio.h>

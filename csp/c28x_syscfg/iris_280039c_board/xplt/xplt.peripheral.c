@@ -81,18 +81,11 @@ void initI2C()
     //
     I2C_enableModule(I2CA_BASE);
 }
-
-
-
 // User should setup all the peripheral in this function.
 void setup_peripheral(void)
 {
     // Setup Debug Uart
     debug_uart = IRIS_UART_USB_BASE;
-
-    // Test print function
-    gmp_base_print(TEXT_STRING("Hello World!\r\n"));
-    asm(" RPT #255 || NOP");
 
     //
     // Initialize GPIOs for use as SDA A and SCL A respectively
@@ -128,11 +121,6 @@ void setup_peripheral(void)
 // ADC interrupt
 interrupt void MainISR(void)
 {
-    //
-    // call GMP ISR  Controller operation callback function
-    //
-    gmp_base_ctl_step();
-
     //
     // Call GMP Timer
     //
@@ -307,47 +295,15 @@ interrupt void INT_IRIS_UART_RS232_RX_ISR(void)
 
 #endif // BOARD_SELECTION == GMP_IRIS
 
-//=================================================================================================
-// Debug interface
-
-// a local small cache size, capable of covering the depth of the hardware FIFO (typically 16 bytes)
-#define ISR_LOCAL_BUF_SIZE 16
-
-extern gmp_datalink_t dl;
-
-void flush_dl_tx_buffer()
-{
-    // Send head
-    gmp_hal_uart_write(IRIS_UART_USB_BASE, gmp_dev_dl_get_tx_hw_hdr_ptr(&dl), gmp_dev_dl_get_tx_hw_hdr_size(&dl), 10);
-
-    // Send data body, if necessary
-    if (gmp_dev_dl_get_tx_hw_pld_size(&dl) > 0)
-    {
-        gmp_hal_uart_write(IRIS_UART_USB_BASE, gmp_dev_dl_get_tx_hw_pld_ptr(&dl), gmp_dev_dl_get_tx_hw_pld_size(&dl),
-                           10);
-    }
-}
-
-void flush_dl_rx_buffer()
-{
-    uint16_t fifoLevel;
-    data_gt rxBuf[ISR_LOCAL_BUF_SIZE];
-
-    // read all FIFO messages
-    fifoLevel = SCI_getRxFIFOStatus(IRIS_UART_USB_BASE);
-
-    if (fifoLevel > 0)
-    {
-        SCI_readCharArray(IRIS_UART_USB_BASE, (uint16_t*)rxBuf, fifoLevel);
-
-        // Lock-free ring queue pushed into the protocol stack (very fast, O(1))
-        gmp_dev_dl_push_str(&dl, rxBuf, fifoLevel);
-    }
-}
-
 interrupt void INT_IRIS_UART_USB_RX_ISR(void)
 {
-    flush_dl_rx_buffer();
+    uint16_t fifo_level = SCI_getRxFIFOStatus(IRIS_UART_USB_BASE);
+
+    while (fifo_level > 0U)
+    {
+        (void)SCI_readCharNonBlocking(IRIS_UART_USB_BASE);
+        fifo_level -= 1U;
+    }
 
     //
     // deal with overrun
@@ -414,5 +370,4 @@ uint16_t SPI_readReg(uint16_t addr)
 
     return read_data;
 }
-
 
