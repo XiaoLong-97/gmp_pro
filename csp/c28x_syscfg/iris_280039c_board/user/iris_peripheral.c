@@ -149,7 +149,8 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 // Digitally controlled DC power supply UI
 
 #define PSU_ENABLE_OLED_UI           1
-#define PSU_ENABLE_FPGA_LINK         1
+// Keep the board FPGA driver available, but isolate it from this PSU application.
+#define PSU_ENABLE_FPGA_LINK         0
 #define PSU_ENABLE_GPIO_BUTTONS      1
 
 #define PSU_VSET_MAX_MV              10000U
