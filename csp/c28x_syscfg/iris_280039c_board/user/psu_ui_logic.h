@@ -47,6 +47,11 @@ static inline uint16_t psu_ui_cursor_digit(uint16_t digit_count, uint16_t satura
     return digit_count;
 }
 
+static inline uint16_t psu_ui_led_cursor_digit(uint16_t logical_cursor)
+{
+    return (logical_cursor > 0U) ? (uint16_t)(logical_cursor - 1U) : 0U;
+}
+
 static inline uint16_t psu_ui_blink_on(uint32_t tick_ms)
 {
     return ((tick_ms / PSU_UI_BLINK_HALF_PERIOD_MS) & 1U) ? 0U : 1U;

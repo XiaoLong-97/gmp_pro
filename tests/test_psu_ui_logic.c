@@ -54,5 +54,11 @@ int main(void)
     CHECK(35, psu_ui_entry_can_commit(0U, 0U, 3U) == 0U);
     CHECK(36, psu_ui_entry_can_commit(1U, 0U, 0U) == 0U);
 
+    /* The LED decimal point is physically attached one digit before the
+       logical next-input cursor used by the OLED text layout. */
+    CHECK(37, psu_ui_led_cursor_digit(0U) == 0U);
+    CHECK(38, psu_ui_led_cursor_digit(1U) == 0U);
+    CHECK(39, psu_ui_led_cursor_digit(2U) == 1U);
+
     return 0;
 }

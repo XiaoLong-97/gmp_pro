@@ -800,7 +800,8 @@ static void psu_render_led_voltage(uint16_t mv)
 {
     uint16_t whole = mv / 1000U;
     uint16_t tenth = (mv % 1000U) / 100U;
-    uint16_t cursor = psu_ui_cursor_digit(psu_entry_digit_count, (uint16_t)psu_entry_saturated);
+    uint16_t cursor = psu_ui_led_cursor_digit(
+        psu_ui_cursor_digit(psu_entry_digit_count, (uint16_t)psu_entry_saturated));
     uint16_t blink = psu_ui_blink_on((uint32_t)gmp_base_get_system_tick());
     uint16_t digit0 = (whole >= 10U) ? led_lut[1] : led_lut[22];
     uint16_t digit1 = led_lut[whole % 10U] | 0x80U;
@@ -828,7 +829,8 @@ static void psu_render_led_voltage(uint16_t mv)
 
 static void psu_render_led_current(uint16_t ma)
 {
-    uint16_t cursor = psu_ui_cursor_digit(psu_entry_digit_count, (uint16_t)psu_entry_saturated);
+    uint16_t cursor = psu_ui_led_cursor_digit(
+        psu_ui_cursor_digit(psu_entry_digit_count, (uint16_t)psu_entry_saturated));
     uint16_t blink = psu_ui_blink_on((uint32_t)gmp_base_get_system_tick());
     uint16_t digit0 = (ma >= 100U) ? led_lut[(ma / 100U) % 10U] : led_lut[22];
     uint16_t digit1 = (ma >= 10U) ? led_lut[(ma / 10U) % 10U] : led_lut[22];
