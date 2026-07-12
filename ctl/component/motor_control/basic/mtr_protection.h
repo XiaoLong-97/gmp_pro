@@ -14,6 +14,7 @@
  */
 
 #include <ctl/component/intrinsic/basic/divider.h>
+#include <ctl/component/interface/interface_base.h>
 
 #ifndef _FILE_MTR_PROTECTION_H_
 #define _FILE_MTR_PROTECTION_H_

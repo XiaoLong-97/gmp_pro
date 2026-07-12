@@ -9,6 +9,8 @@
  */
 
 #include <ctl/component/intrinsic/continuous/continuous_pid.h>
+#include <ctl/component/intrinsic/discrete/discrete_filter.h>
+#include <ctl/math_block/coordinate/coord_trans.h>
 
 /**
  * @defgroup CTL_PLL_API Phase-Locked Loop (PLL) API

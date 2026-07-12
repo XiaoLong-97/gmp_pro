@@ -14,6 +14,7 @@
 
 #include <ctl/component/interface/interface_base.h>
 #include <ctl/component/intrinsic/continuous/continuous_pid.h>
+#include <ctl/component/intrinsic/discrete/discrete_filter.h>
 #include <ctl/component/intrinsic/discrete/discrete_sogi.h>
 #include <ctl/math_block/coordinate/coord_trans.h>
 
