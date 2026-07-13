@@ -29,8 +29,9 @@
 #define PSU_CALIBRATION_VOLTAGE_INPUT_MAX_MV          13200U
 #define PSU_CALIBRATION_CURRENT_INPUT_MAX_MA          165U
 #define PSU_CALIBRATION_CURRENT_INPUT_MAX_CENTIMA     16500U
-#define PSU_CALIBRATION_VOLTAGE_TARGET_MAX_MV         10000U
-#define PSU_CALIBRATION_CURRENT_TARGET_MAX_MA         100U
+/* Internal compliance targets exceed the user-editable 10.0 V/100 mA limits. */
+#define PSU_CALIBRATION_VOLTAGE_TARGET_MAX_MV         10300U
+#define PSU_CALIBRATION_CURRENT_TARGET_MAX_MA         105U
 
 #define PSU_CALIBRATION_LIMIT(value, maximum)                                 \
     (((uint32_t)(value) > (uint32_t)(maximum)) ? (uint32_t)(maximum)          \

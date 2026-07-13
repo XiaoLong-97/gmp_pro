@@ -12,6 +12,7 @@
 #include "psu_protection.h"
 #include "psu_ui_logic.h"
 #include "psu_auto_control.h"
+#include "psu_mode_control.h"
 
 // peripheral
 #include <core/dev/display/ht16k33.h>
@@ -116,7 +117,6 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
     ht16k33_dev_t* dev = (ht16k33_dev_t*)tsk->user_data;
     static uint16_t err_count = 0;
     static fast_gt last_key_id = 0;
-    static time_gt last_key_tick = 0;
     fast_gt key_id = 0;
 
     ec_gt ret = ht16k33_read_keys(dev, &key_id);
@@ -133,14 +133,14 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 
     err_count = 0;
 
-    if (key_id != 0)
+    if (key_id == 0)
     {
-        if (key_id != last_key_id || gmp_base_get_diff_system_tick(last_key_tick) > 350)
-        {
-            psu_handle_key(key_id);
-            last_key_id = key_id;
-            last_key_tick = gmp_base_get_system_tick();
-        }
+        last_key_id = 0;
+    }
+    else if (key_id != last_key_id)
+    {
+        psu_handle_key(key_id);
+        last_key_id = key_id;
     }
 
     return GMP_TASK_DONE;
@@ -198,6 +198,7 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_KEY_OUTPUT_TOGGLE        16U
 #define PSU_KEY_STEP_TOGGLE          3U
 #define PSU_KEY_CLEAR_ENTRY          21U
+#define PSU_KEY_MODE_TOGGLE          20U
 
 #define PSU_VFB_ADC_RESULT_BASE      ADC_CH1_RESULT_BASE
 #define PSU_VFB_ADC_SOC              ADC_CH1
@@ -211,14 +212,8 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 
 typedef enum
 {
-    PSU_MODE_CV = 0,
-    PSU_MODE_CC = 1
-} psu_mode_t;
-
-typedef enum
-{
-    PSU_EDIT_VOLTAGE = 0,
-    PSU_EDIT_CURRENT = 1
+    PSU_EDIT_VOLTAGE = PSU_EDIT_TARGET_VOLTAGE,
+    PSU_EDIT_CURRENT = PSU_EDIT_TARGET_CURRENT
 } psu_edit_t;
 
 typedef enum
@@ -229,7 +224,8 @@ typedef enum
 
 typedef struct
 {
-    psu_mode_t mode;
+    uint16_t input_mode;
+    uint16_t regulation_state;
     psu_edit_t edit;
     psu_step_t step;
     fast_gt output_on;
@@ -256,7 +252,8 @@ volatile fast_gt psu_output_enabled = 0;
 volatile fast_gt psu_dac_force_test_enabled = 0;
 
 static psu_ui_t psu_ui = {
-    PSU_MODE_CV,
+    PSU_INPUT_MODE_AUTO,
+    PSU_REGULATION_CV,
     PSU_EDIT_VOLTAGE,
     PSU_STEP_FINE,
     0,
@@ -330,6 +327,8 @@ static void psu_sync_dac_globals(void)
 {
     uint16_t voltage_dac_full_scale_counts;
     uint16_t current_dac_full_scale_counts;
+    uint16_t voltage_target_mv;
+    uint16_t current_target_ma;
 
 #if PSU_DAC_FORCE_TEST
     psu_vset_dac_counts = PSU_DACA_FORCE_TEST_COUNTS;
@@ -341,11 +340,13 @@ static void psu_sync_dac_globals(void)
 
     voltage_dac_full_scale_counts = psu_dacout_mv_to_counts(PSU_VSET_DACOUT_MAX_MV);
     current_dac_full_scale_counts = psu_dacout_mv_to_counts(PSU_ISET_DACOUT_MAX_MV);
+    voltage_target_mv = psu_mode_voltage_target_mv(psu_ui.input_mode, psu_ui.set_mv);
+    current_target_ma = psu_mode_current_target_ma(psu_ui.input_mode, psu_ui.set_ma);
 
     psu_dac_force_test_enabled = 0;
-    psu_vset_dac_counts = PSU_VOLTAGE_DAC_COUNTS(psu_ui.set_mv,
+    psu_vset_dac_counts = PSU_VOLTAGE_DAC_COUNTS(voltage_target_mv,
                                                  voltage_dac_full_scale_counts);
-    psu_iset_dac_counts = PSU_CURRENT_DAC_COUNTS(psu_ui.set_ma,
+    psu_iset_dac_counts = PSU_CURRENT_DAC_COUNTS(current_target_ma,
                                                  current_dac_full_scale_counts);
     psu_output_enabled = (psu_ui.output_on && !psu_ui.alarm_latched) ? 1 : 0;
 }
@@ -383,7 +384,29 @@ static void psu_toggle_step(void)
 
 static void psu_toggle_edit(void)
 {
-    psu_ui.edit = (psu_ui.edit == PSU_EDIT_VOLTAGE) ? PSU_EDIT_CURRENT : PSU_EDIT_VOLTAGE;
+    uint16_t requested_edit;
+
+    if (psu_ui.input_mode != PSU_INPUT_MODE_AUTO)
+        return;
+
+    requested_edit = (psu_ui.edit == PSU_EDIT_VOLTAGE)
+                         ? PSU_EDIT_CURRENT : PSU_EDIT_VOLTAGE;
+    psu_ui.edit = (psu_edit_t)psu_mode_allowed_edit(psu_ui.input_mode,
+                                                     requested_edit);
+    psu_entry_reset();
+    psu_set_dirty();
+}
+
+static void psu_switch_input_mode(void)
+{
+    psu_mode_switch_result_t switched = psu_mode_switch(
+        psu_ui.input_mode, (uint16_t)psu_ui.edit);
+
+    psu_ui.input_mode = switched.input_mode;
+    psu_ui.edit = (psu_edit_t)switched.edit_target;
+    psu_ui.output_on = (fast_gt)switched.output_on;
+    psu_ui.regulation_state = psu_mode_regulation_state(
+        psu_ui.input_mode, psu_ui.regulation_state);
     psu_entry_reset();
     psu_set_dirty();
 }
@@ -615,6 +638,9 @@ static void psu_handle_key(fast_gt key_id)
         psu_entry_reset();
         psu_set_dirty();
         break;
+    case PSU_KEY_MODE_TOGGLE:
+        psu_switch_input_mode();
+        break;
     default:
         gmp_base_print("Key: %d\r\n", key_id);
         break;
@@ -725,20 +751,26 @@ static void psu_read_feedback(void)
     psu_ui.meas_ma = (uint16_t)(psu_ui.meas_centi_ma / 100U);
 }
 
-static void psu_update_auto_mode(void)
+static void psu_update_regulation_state(void)
 {
-    psu_mode_t next_mode;
+    uint16_t auto_state = psu_ui.regulation_state;
+    uint16_t next_state;
 
-    if (!psu_ui.output_on || psu_ui.alarm_latched)
-        next_mode = PSU_MODE_CV;
-    else
-        next_mode = (psu_mode_t)psu_auto_next_mode((uint16_t)psu_ui.mode,
-                                                   psu_ui.meas_mv, psu_ui.meas_ma,
-                                                   psu_ui.set_mv, psu_ui.set_ma);
-
-    if (next_mode != psu_ui.mode)
+    if (psu_ui.input_mode == PSU_INPUT_MODE_AUTO)
     {
-        psu_ui.mode = next_mode;
+        if (!psu_ui.output_on || psu_ui.alarm_latched)
+            auto_state = PSU_REGULATION_CV;
+        else
+            auto_state = psu_auto_next_mode(psu_ui.regulation_state,
+                                            psu_ui.meas_mv, psu_ui.meas_ma,
+                                            psu_ui.set_mv, psu_ui.set_ma);
+    }
+
+    next_state = psu_mode_regulation_state(psu_ui.input_mode, auto_state);
+
+    if (next_state != psu_ui.regulation_state)
+    {
+        psu_ui.regulation_state = next_state;
         psu_ui.dirty = 1;
     }
 }
@@ -783,7 +815,7 @@ static void psu_sync_fpga(void)
 
     if (psu_output_enabled)
         ctrl |= 0x0001U;
-    if (psu_ui.mode == PSU_MODE_CC)
+    if (psu_ui.regulation_state == PSU_REGULATION_CC)
         ctrl |= 0x0002U;
     if (psu_ui.alarm_latched)
         ctrl |= 0x0004U;
@@ -907,14 +939,22 @@ static void psu_render_oled(void)
     static fast_gt oled_cleared = 0;
     char line[24];
     uint16_t measured_centivolts;
-    uint16_t display_mv = (psu_entry_active && psu_ui.edit == PSU_EDIT_VOLTAGE)
-                              ? psu_entry_preview : psu_ui.set_mv;
-    uint16_t display_ma = (psu_entry_active && psu_ui.edit == PSU_EDIT_CURRENT)
-                              ? psu_entry_preview : psu_ui.set_ma;
-    const char* voltage_label = (psu_entry_active && psu_ui.edit == PSU_EDIT_VOLTAGE)
-                                    ? "Unew" : "Uset";
-    const char* current_label = (psu_entry_active && psu_ui.edit == PSU_EDIT_CURRENT)
-                                    ? "Inew" : "Iset";
+    uint16_t display_mv = (psu_ui.input_mode == PSU_INPUT_MODE_CC)
+                              ? PSU_MODE_VOLTAGE_COMPLIANCE_MV
+                              : ((psu_entry_active && psu_ui.edit == PSU_EDIT_VOLTAGE)
+                                     ? psu_entry_preview : psu_ui.set_mv);
+    uint16_t display_ma = (psu_ui.input_mode == PSU_INPUT_MODE_CV)
+                              ? PSU_MODE_CURRENT_COMPLIANCE_MA
+                              : ((psu_entry_active && psu_ui.edit == PSU_EDIT_CURRENT)
+                                     ? psu_entry_preview : psu_ui.set_ma);
+    const char* voltage_label = (psu_ui.input_mode == PSU_INPUT_MODE_CC)
+                                    ? "Ulim"
+                                    : ((psu_entry_active && psu_ui.edit == PSU_EDIT_VOLTAGE)
+                                           ? "Unew" : "Uset");
+    const char* current_label = (psu_ui.input_mode == PSU_INPUT_MODE_CV)
+                                    ? "Ilim"
+                                    : ((psu_entry_active && psu_ui.edit == PSU_EDIT_CURRENT)
+                                           ? "Inew" : "Iset");
     uint16_t cursor = psu_ui_cursor_digit(psu_entry_digit_count, (uint16_t)psu_entry_saturated);
     uint16_t blink = psu_ui_blink_on((uint32_t)gmp_base_get_system_tick());
 
@@ -924,9 +964,16 @@ static void psu_render_oled(void)
         oled_cleared = 1;
     }
 
-    sprintf(line, "%s %s %s", (psu_ui.mode == PSU_MODE_CV) ? "CV" : "CC",
-            (psu_output_enabled) ? "ON" : "OFF",
-            (psu_ui.step == PSU_STEP_FINE) ? "FINE" : "COARSE");
+    if (psu_ui.input_mode == PSU_INPUT_MODE_AUTO)
+        sprintf(line, "AUTO-%s %s %s",
+                (psu_ui.regulation_state == PSU_REGULATION_CV) ? "CV" : "CC",
+                psu_output_enabled ? "ON" : "OFF",
+                (psu_ui.step == PSU_STEP_FINE) ? "FINE" : "CRS");
+    else
+        sprintf(line, "%s %s %s",
+                (psu_ui.input_mode == PSU_INPUT_MODE_CV) ? "CV" : "CC",
+                psu_output_enabled ? "ON" : "OFF",
+                (psu_ui.step == PSU_STEP_FINE) ? "FINE" : "CRS");
     psu_oled_show_line(0, line);
 
     sprintf(line, "%s %2u.%1uV", voltage_label, (unsigned int)(display_mv / 1000U),
@@ -956,6 +1003,10 @@ static void psu_render_oled(void)
         psu_oled_show_line(6, "ALARM:OVER I");
     else if (psu_ui.alarm_reason == PSU_PROTECTION_OVERVOLTAGE)
         psu_oled_show_line(6, "ALARM:OVER V");
+    else if (psu_ui.input_mode == PSU_INPUT_MODE_CV)
+        psu_oled_show_line(6, "EDIT:U ONLY");
+    else if (psu_ui.input_mode == PSU_INPUT_MODE_CC)
+        psu_oled_show_line(6, "EDIT:I ONLY");
     else if (psu_ui.edit == PSU_EDIT_VOLTAGE)
         psu_oled_show_line(6, "EDIT:U SET");
     else
@@ -992,7 +1043,7 @@ gmp_task_status_t tsk_psu_io(gmp_task_t* tsk)
 
     psu_poll_buttons();
     psu_read_feedback();
-    psu_update_auto_mode();
+    psu_update_regulation_state();
     psu_check_protection();
     psu_sync_dac_globals();
     psu_write_dac_outputs();

@@ -37,10 +37,14 @@ STATIC_ASSERT(voltage_dac_midpoint,
               PSU_VOLTAGE_DAC_COUNTS(5000U, 3102U) == 1533U);
 STATIC_ASSERT(voltage_dac_full_scale,
               PSU_VOLTAGE_DAC_COUNTS(10000U, 3102U) == 3073U);
+STATIC_ASSERT(voltage_cc_compliance,
+              PSU_VOLTAGE_DAC_COUNTS(10300U, 3102U) == 3166U);
 STATIC_ASSERT(current_dac_ten_milliamp,
               PSU_CURRENT_DAC_COUNTS(10U, 2482U) == 146U);
 STATIC_ASSERT(current_dac_full_scale,
               PSU_CURRENT_DAC_COUNTS(100U, 2482U) == 2399U);
+STATIC_ASSERT(current_cv_compliance,
+              PSU_CURRENT_DAC_COUNTS(105U, 2482U) == 2525U);
 
 int main(void)
 {

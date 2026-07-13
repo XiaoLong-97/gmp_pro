@@ -21,12 +21,13 @@ $expected = [ordered]@{
     PSU_KEY_OUTPUT_TOGGLE = 16
     PSU_KEY_STEP_TOGGLE   = 3
     PSU_KEY_CLEAR_ENTRY   = 21
+    PSU_KEY_MODE_TOGGLE   = 20
 }
 
 $actual = @{}
 $matches = [regex]::Matches(
     $source,
-    '(?m)^#define\s+(PSU_KEY_(?:DIGIT_[0-9]|DECIMAL|CONFIRM|EDIT_TOGGLE|OUTPUT_TOGGLE|STEP_TOGGLE|CLEAR_ENTRY))\s+(\d+)U\s*$'
+    '(?m)^#define\s+(PSU_KEY_(?:DIGIT_[0-9]|DECIMAL|CONFIRM|EDIT_TOGGLE|OUTPUT_TOGGLE|STEP_TOGGLE|CLEAR_ENTRY|MODE_TOGGLE))\s+(\d+)U\s*$'
 )
 foreach ($match in $matches) {
     $actual[$match.Groups[1].Value] = [int]$match.Groups[2].Value
