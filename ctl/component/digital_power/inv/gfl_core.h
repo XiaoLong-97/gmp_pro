@@ -3,9 +3,12 @@
 
 #include <ctl/math_block/coordinate/coord_trans.h>
 
+#include <ctl/component/interface/interface_base.h>
+
 #include <ctl/component/intrinsic/basic/saturation.h>
 #include <ctl/component/intrinsic/continuous/continuous_pid.h>
 
+#include <ctl/component/intrinsic/discrete/biquad_filter.h>
 #include <ctl/component/intrinsic/discrete/discrete_filter.h>
 #include <ctl/component/intrinsic/discrete/lead_lag.h>
 #include <ctl/component/intrinsic/discrete/proportional_resonant.h>

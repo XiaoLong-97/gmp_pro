@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <oled_driver.h>
+#include "psu_calibration.h"
 #include "psu_measurement.h"
 #include "psu_protection.h"
 #include "psu_ui_logic.h"
@@ -238,6 +239,7 @@ typedef struct
     uint16_t set_ma;
     uint16_t meas_mv;
     uint16_t meas_ma;
+    uint16_t meas_centi_ma;
     fast_gt dirty;
 } psu_ui_t;
 
@@ -262,6 +264,7 @@ static psu_ui_t psu_ui = {
     PSU_PROTECTION_NONE,
     5000U,
     50U,
+    0,
     0,
     0,
     1
@@ -323,19 +326,11 @@ static uint16_t psu_dacout_mv_to_counts(uint16_t dacout_mv)
                        (uint32_t)(PSU_DAC_REF_MV / 2U)) / PSU_DAC_REF_MV);
 }
 
-static uint16_t psu_scale_to_dac(uint16_t value, uint16_t full_scale, uint16_t dacout_full_scale_mv)
-{
-    uint16_t dac_full_scale_counts;
-
-    if (full_scale == 0U)
-        return 0U;
-
-    dac_full_scale_counts = psu_dacout_mv_to_counts(dacout_full_scale_mv);
-    return (uint16_t)(((uint32_t)value * dac_full_scale_counts +
-                       (uint32_t)(full_scale / 2U)) / full_scale);
-}
 static void psu_sync_dac_globals(void)
 {
+    uint16_t voltage_dac_full_scale_counts;
+    uint16_t current_dac_full_scale_counts;
+
 #if PSU_DAC_FORCE_TEST
     psu_vset_dac_counts = PSU_DACA_FORCE_TEST_COUNTS;
     psu_iset_dac_counts = PSU_DACB_FORCE_TEST_COUNTS;
@@ -344,9 +339,14 @@ static void psu_sync_dac_globals(void)
     return;
 #endif
 
+    voltage_dac_full_scale_counts = psu_dacout_mv_to_counts(PSU_VSET_DACOUT_MAX_MV);
+    current_dac_full_scale_counts = psu_dacout_mv_to_counts(PSU_ISET_DACOUT_MAX_MV);
+
     psu_dac_force_test_enabled = 0;
-    psu_vset_dac_counts = psu_scale_to_dac(psu_ui.set_mv, PSU_VSET_MAX_MV, PSU_VSET_DACOUT_MAX_MV);
-    psu_iset_dac_counts = psu_scale_to_dac(psu_ui.set_ma, PSU_ISET_MAX_MA, PSU_ISET_DACOUT_MAX_MV);
+    psu_vset_dac_counts = PSU_VOLTAGE_DAC_COUNTS(psu_ui.set_mv,
+                                                 voltage_dac_full_scale_counts);
+    psu_iset_dac_counts = PSU_CURRENT_DAC_COUNTS(psu_ui.set_ma,
+                                                 current_dac_full_scale_counts);
     psu_output_enabled = (psu_ui.output_on && !psu_ui.alarm_latched) ? 1 : 0;
 }
 
@@ -718,8 +718,11 @@ static void psu_read_feedback(void)
     filtered_v = psu_adc_filter_update(&voltage_filter, raw_v);
     filtered_i = psu_adc_filter_update(&current_filter, raw_i);
 
-    psu_ui.meas_mv = PSU_ADC_VOUT_MV_FROM_COUNTS(filtered_v);
-    psu_ui.meas_ma = PSU_ADC_IOUT_MA_FROM_COUNTS(filtered_i);
+    psu_ui.meas_mv = PSU_CALIBRATE_VOLTAGE_MV(
+        PSU_ADC_VOUT_MV_FROM_COUNTS(filtered_v));
+    psu_ui.meas_centi_ma = PSU_CALIBRATE_CURRENT_CENTIMA(
+        PSU_ADC_IOUT_CENTIMA_FROM_COUNTS(filtered_i));
+    psu_ui.meas_ma = (uint16_t)(psu_ui.meas_centi_ma / 100U);
 }
 
 static void psu_update_auto_mode(void)
@@ -942,7 +945,9 @@ static void psu_render_oled(void)
         line[5U + cursor] = '_';
     psu_oled_show_line(3, line);
 
-    sprintf(line, "Iout %3umA", (unsigned int)psu_ui.meas_ma);
+    sprintf(line, "Iout %3u.%02umA",
+            (unsigned int)(psu_ui.meas_centi_ma / 100U),
+            (unsigned int)(psu_ui.meas_centi_ma % 100U));
     psu_oled_show_line(4, line);
 
     if (psu_entry_active && psu_entry_saturated)

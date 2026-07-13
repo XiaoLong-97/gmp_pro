@@ -16,11 +16,14 @@
                    PSU_VOLTAGE_FEEDBACK_GAIN) + (PSU_ADC_MAX_COUNTS / 2UL)) /       \
                  PSU_ADC_MAX_COUNTS))
 
-/* Vfi is 20 mV for each milliamp when R9 is 1 ohm. */
-#define PSU_ADC_IOUT_MA_FROM_COUNTS(raw_counts)                                      \
-    ((uint16_t)((((uint32_t)(raw_counts) * PSU_ADC_REF_MV) +                        \
+/* Vfi is 20 mV/mA. Preserve 0.01 mA resolution for software calibration. */
+#define PSU_ADC_IOUT_CENTIMA_FROM_COUNTS(raw_counts)                                \
+    ((uint16_t)((((uint32_t)(raw_counts) * PSU_ADC_REF_MV * 100UL) +                \
                   ((PSU_ADC_MAX_COUNTS * PSU_CURRENT_FEEDBACK_MV_PER_MA) / 2UL)) /  \
                  (PSU_ADC_MAX_COUNTS * PSU_CURRENT_FEEDBACK_MV_PER_MA)))
+
+#define PSU_ADC_IOUT_MA_FROM_COUNTS(raw_counts)                                     \
+    ((uint16_t)((PSU_ADC_IOUT_CENTIMA_FROM_COUNTS(raw_counts) + 50U) / 100U))
 
 /* Quarter-step IIR. One/two-count changes form a small display deadband. */
 #define PSU_ADC_FILTER_BLEND(previous, sample)                                       \

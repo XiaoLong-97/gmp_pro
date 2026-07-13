@@ -4,6 +4,17 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 
 $expectations = @(
     @{
+        Path = 'ctl/component/digital_power/inv/gfl_core.h'
+        Includes = @(
+            '#include <ctl/component/interface/interface_base.h>',
+            '#include <ctl/component/intrinsic/discrete/biquad_filter.h>'
+        )
+    },
+    @{
+        Path = 'ctl/component/digital_power/basic/protectoion_strategy.h'
+        Includes = @('#include <ctl/component/interface/interface_base.h>')
+    },
+    @{
         Path = 'ctl/component/digital_power/inv/pll_ddsrf.h'
         Includes = @(
             '#include <ctl/component/intrinsic/discrete/discrete_filter.h>',
