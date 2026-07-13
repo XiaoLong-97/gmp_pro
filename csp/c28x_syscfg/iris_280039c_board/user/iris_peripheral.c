@@ -181,23 +181,23 @@ gmp_task_status_t tsk_key_flush(gmp_task_t* tsk)
 #define PSU_OUTPUT_BUTTON_GPIO       IRIS_GPIO5
 #define PSU_EDIT_BUTTON_GPIO         IRIS_GPIO6
 
-// HT16K33 key_id = COM * 13 + K + 1. These values map board labels SW1..SW17.
-#define PSU_KEY_DIGIT_1              8U
-#define PSU_KEY_DIGIT_2              9U
-#define PSU_KEY_DIGIT_3              1U
-#define PSU_KEY_DIGIT_4              2U
-#define PSU_KEY_DIGIT_5              3U
+// HT16K33 key_id = COM * 13 + K + 1. Logical functions use the physical IDs in the keymap manual.
+#define PSU_KEY_DIGIT_1              15U
+#define PSU_KEY_DIGIT_2              14U
+#define PSU_KEY_DIGIT_3              22U
+#define PSU_KEY_DIGIT_4              6U
+#define PSU_KEY_DIGIT_5              5U
 #define PSU_KEY_DIGIT_6              4U
-#define PSU_KEY_DIGIT_7              5U
-#define PSU_KEY_DIGIT_8              6U
-#define PSU_KEY_DIGIT_9              7U
-#define PSU_KEY_DIGIT_0              21U
-#define PSU_KEY_DECIMAL              22U
-#define PSU_KEY_CONFIRM              14U
-#define PSU_KEY_EDIT_TOGGLE          15U
+#define PSU_KEY_DIGIT_7              19U
+#define PSU_KEY_DIGIT_8              18U
+#define PSU_KEY_DIGIT_9              17U
+#define PSU_KEY_DIGIT_0              2U
+#define PSU_KEY_DECIMAL              1U
+#define PSU_KEY_CONFIRM              9U
+#define PSU_KEY_EDIT_TOGGLE          7U
 #define PSU_KEY_OUTPUT_TOGGLE        16U
-#define PSU_KEY_STEP_TOGGLE          17U
-#define PSU_KEY_CLEAR_ENTRY          18U
+#define PSU_KEY_STEP_TOGGLE          3U
+#define PSU_KEY_CLEAR_ENTRY          21U
 
 #define PSU_VFB_ADC_RESULT_BASE      ADC_CH1_RESULT_BASE
 #define PSU_VFB_ADC_SOC              ADC_CH1
