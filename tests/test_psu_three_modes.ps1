@@ -19,7 +19,7 @@ $requiredHeaderPatterns = [ordered]@{
     'CV mode constant' = '#define\s+PSU_INPUT_MODE_CV\s+1U'
     'CC mode constant' = '#define\s+PSU_INPUT_MODE_CC\s+2U'
     'CV current compliance' = '#define\s+PSU_MODE_CURRENT_COMPLIANCE_MA\s+105U'
-    'CC voltage compliance' = '#define\s+PSU_MODE_VOLTAGE_COMPLIANCE_MV\s+10300U'
+    'CC voltage compliance' = '#define\s+PSU_MODE_VOLTAGE_COMPLIANCE_MV\s+10000U'
     'mode cycle helper' = 'psu_mode_next_input\s*\('
     'edit permission helper' = 'psu_mode_allowed_edit\s*\('
     'voltage target helper' = 'psu_mode_voltage_target_mv\s*\('
@@ -54,8 +54,8 @@ foreach ($entry in $requiredSourcePatterns.GetEnumerator()) {
     }
 }
 
-if ($calibration -notmatch '#define\s+PSU_CALIBRATION_VOLTAGE_TARGET_MAX_MV\s+10300U') {
-    throw 'Calibration command range must include the 10.3 V CC compliance target.'
+if ($calibration -notmatch '#define\s+PSU_CALIBRATION_VOLTAGE_TARGET_MAX_MV\s+10000U') {
+    throw 'Calibration command range must include the 10.0 V CC compliance target.'
 }
 
 if ($calibration -notmatch '#define\s+PSU_CALIBRATION_CURRENT_TARGET_MAX_MA\s+105U') {

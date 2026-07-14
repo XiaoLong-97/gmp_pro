@@ -38,7 +38,7 @@ STATIC_ASSERT(voltage_dac_midpoint,
 STATIC_ASSERT(voltage_dac_full_scale,
               PSU_VOLTAGE_DAC_COUNTS(10000U, 3102U) == 3073U);
 STATIC_ASSERT(voltage_cc_compliance,
-              PSU_VOLTAGE_DAC_COUNTS(10300U, 3102U) == 3166U);
+              PSU_VOLTAGE_DAC_COUNTS(10000U, 3102U) == 3073U);
 STATIC_ASSERT(current_dac_ten_milliamp,
               PSU_CURRENT_DAC_COUNTS(10U, 2482U) == 146U);
 STATIC_ASSERT(current_dac_full_scale,

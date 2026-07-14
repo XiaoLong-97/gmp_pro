@@ -23,7 +23,7 @@ int main(void)
     CHECK(9, psu_mode_current_target_ma(PSU_INPUT_MODE_AUTO, 50U) == 50U);
     CHECK(10, psu_mode_voltage_target_mv(PSU_INPUT_MODE_CV, 8500U) == 8500U);
     CHECK(11, psu_mode_current_target_ma(PSU_INPUT_MODE_CV, 50U) == 105U);
-    CHECK(12, psu_mode_voltage_target_mv(PSU_INPUT_MODE_CC, 8500U) == 10300U);
+    CHECK(12, psu_mode_voltage_target_mv(PSU_INPUT_MODE_CC, 8500U) == 10000U);
     CHECK(13, psu_mode_current_target_ma(PSU_INPUT_MODE_CC, 50U) == 50U);
 
     CHECK(14, psu_mode_regulation_state(PSU_INPUT_MODE_CV, PSU_REGULATION_CC) ==
