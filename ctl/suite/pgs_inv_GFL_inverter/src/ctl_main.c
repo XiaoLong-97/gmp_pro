@@ -14,7 +14,7 @@
 
 #include <gmp_core.h>
 
-#include <ctrl_settings.h>
+#include "ctl_settings_defaults.h"
 
 #include "ctl_main.h"
 
@@ -25,36 +25,39 @@
 //=================================================================================================
 // global controller variables
 
-// state machine
+// System framework
 cia402_sm_t cia402_sm;
 
-// modulator: SPWM modulator / SVPWM modulator / NPC modulator
-#if defined USING_NPC_MODULATOR
-npc_modulator_t spwm;
-#else
-spwm_modulator_t spwm;
-#endif // USING_NPC_MODULATOR
-
-// controller body: Current controller, Power controller / Voltage controller
+// Control Law Core
+// Current controller, Power controller / Voltage controller
 gfl_pq_ctrl_t pq_ctrl;
 inv_neg_ctrl_init_t gfl_neg_init;
 inv_neg_ctrl_t neg_current_ctrl;
 gfl_inv_ctrl_init_t gfl_init;
 gfl_inv_ctrl_t inv_ctrl;
 
-// Observer: PLL
+// Input channel
 
-// additional controller: harmonic management, negative current controller
+// Output channel: SPWM modulator / SVPWM modulator / NPC modulator
+#if defined USING_NPC_MODULATOR
+npc_modulator_t spwm;
+#else
+spwm_modulator_t spwm;
+#endif // USING_NPC_MODULATOR
 
-//
-volatile fast_gt flag_system_running = 0;
-volatile fast_gt flag_error = 0;
+// Protection module
 
-// adc calibrator flags
+// ADC Calibrator
 adc_bias_calibrator_t adc_calibrator;
-//volatile fast_gt flag_enable_adc_calibrator = 1;
+#if defined SPECIFY_ENABLE_ADC_CALIBRATE
+volatile fast_gt flag_enable_adc_calibrator = 1;
+#else
 volatile fast_gt flag_enable_adc_calibrator = 0;
+#endif
 volatile fast_gt index_adc_calibrator = 0;
+uint32_t pq_loop_tick = 0;
+
+// User commands
 
 //=================================================================================================
 // CTL initialize routine
@@ -71,12 +74,12 @@ void ctl_init()
     //
     gfl_init.fs = CONTROLLER_FREQUENCY;
     gfl_init.v_base = CTRL_VOLTAGE_BASE;
-    gfl_init.v_grid = 0.33f;
+    gfl_init.v_grid = GFL_GRID_VOLTAGE_PU;
     gfl_init.i_base = CTRL_CURRENT_BASE;
-    gfl_init.freq_base = 50.0f;
+    gfl_init.freq_base = GFL_GRID_FREQUENCY_HZ;
 
-    gfl_init.grid_filter_L = 1.5e-3f;
-    gfl_init.grid_filter_C = 5.0e-6f;
+    gfl_init.grid_filter_L = GFL_GRID_FILTER_INDUCTANCE_H;
+    gfl_init.grid_filter_C = GFL_GRID_FILTER_CAPACITANCE_F;
 
     ctl_auto_tuning_gfl_inv(&gfl_init);
     ctl_init_gfl_inv(&inv_ctrl, &gfl_init);
@@ -99,23 +102,26 @@ void ctl_init()
     //
     // Power controller
     //
-    ctl_init_gfl_pq(&pq_ctrl, 0.75f, 0.001f, 0.75f, 0.001f, 1.0f, CONTROLLER_FREQUENCY);
+    ctl_init_gfl_pq(&pq_ctrl, GFL_PQ_ACTIVE_KP, GFL_PQ_ACTIVE_KI, GFL_PQ_REACTIVE_KP, GFL_PQ_REACTIVE_KI,
+                    GFL_PQ_CURRENT_LIMIT_PU, GFL_PQ_LOOP_FREQUENCY_HZ);
     ctl_attach_gfl_pq_to_core(&pq_ctrl, &inv_ctrl);
+    ctl_set_gfl_pq_ref(&pq_ctrl, float2ctrl(GFL_ACTIVE_POWER_REF_PU), float2ctrl(GFL_REACTIVE_POWER_REF_PU));
+    pq_loop_tick = 0;
 
 #if BUILD_LEVEL == 1
     // Voltage open loop, inverter
     ctl_set_gfl_inv_openloop_mode(&inv_ctrl);
-    ctl_set_gfl_inv_voltage_openloop(&inv_ctrl, float2ctrl(0.6), float2ctrl(0.6));
+    ctl_set_gfl_inv_voltage_openloop(&inv_ctrl, float2ctrl(GFL_OPEN_LOOP_VD_PU), float2ctrl(GFL_OPEN_LOOP_VQ_PU));
 
 #elif BUILD_LEVEL == 2
     // Basic current close loop, inverter
     ctl_set_gfl_inv_current_mode(&inv_ctrl);
-    ctl_set_gfl_inv_current(&inv_ctrl, float2ctrl(0.1), float2ctrl(0.1));
+    ctl_set_gfl_inv_current(&inv_ctrl, float2ctrl(GFL_CURRENT_LEVEL2_ID_PU), float2ctrl(GFL_CURRENT_LEVEL2_IQ_PU));
 
 #elif BUILD_LEVEL == 3
     // Basic current close loop, inverter
     ctl_set_gfl_inv_current_mode(&inv_ctrl);
-    ctl_set_gfl_inv_current(&inv_ctrl, float2ctrl(0.1), float2ctrl(0));
+    ctl_set_gfl_inv_current(&inv_ctrl, float2ctrl(GFL_CURRENT_LEVEL3_ID_PU), float2ctrl(GFL_CURRENT_LEVEL3_IQ_PU));
 
     ctl_enable_neg_current_inv(&neg_current_ctrl);
 
@@ -125,11 +131,29 @@ void ctl_init()
 #elif BUILD_LEVEL == 4
     // current close loop with feed forward, inverter
     ctl_set_gfl_inv_current_mode(&inv_ctrl);
-    ctl_set_gfl_inv_current(&inv_ctrl, float2ctrl(0.6), float2ctrl(0.6));
+    ctl_set_gfl_inv_current(&inv_ctrl, float2ctrl(GFL_CURRENT_LEVEL4_ID_PU), float2ctrl(GFL_CURRENT_LEVEL4_IQ_PU));
+
+    ctl_enable_neg_current_inv(&neg_current_ctrl);
+
+    ctl_enable_gfl_inv_pll(&inv_ctrl);
+    ctl_set_gfl_inv_grid_connect(&inv_ctrl);
 
     ctl_enable_gfl_inv_decouple(&inv_ctrl);
     ctl_enable_gfl_inv_active_damp(&inv_ctrl);
     ctl_enable_gfl_inv_lead_compensator(&inv_ctrl);
+
+#elif BUILD_LEVEL == 5
+    // Cascaded P/Q power loop -> d/q current loop, grid connected.
+    ctl_set_gfl_inv_current_mode(&inv_ctrl);
+    ctl_set_gfl_inv_current(&inv_ctrl, 0, 0);
+
+    ctl_enable_neg_current_inv(&neg_current_ctrl);
+    ctl_enable_gfl_inv_pll(&inv_ctrl);
+    ctl_set_gfl_inv_grid_connect(&inv_ctrl);
+    ctl_enable_gfl_inv_decouple(&inv_ctrl);
+    ctl_enable_gfl_inv_active_damp(&inv_ctrl);
+    ctl_enable_gfl_inv_lead_compensator(&inv_ctrl);
+    ctl_enable_gfl_pq_ctrl(&pq_ctrl);
 
 #endif // BUILD_LEVEL
 
@@ -137,7 +161,7 @@ void ctl_init()
     // init and config CiA402 standard state machine
     //
     init_cia402_state_machine(&cia402_sm);
-    cia402_sm.minimum_transit_delay[3] = 100;
+    cia402_sm.minimum_transit_delay[3] = GFL_CIA402_OPERATION_ENABLE_DELAY_MS;
 
 #if defined SPECIFY_PC_ENVIRONMENT
     cia402_sm.flag_enable_control_word = 0;
@@ -157,7 +181,7 @@ void ctl_init()
     //
     // init ADC Calibrator
     //
-    ctl_init_adc_calibrator(&adc_calibrator, 20, 0.707f, CONTROLLER_FREQUENCY);
+    ctl_init_adc_calibrator(&adc_calibrator, GFL_ADC_CALIBRATOR_FC_HZ, GFL_ADC_CALIBRATOR_Q, CONTROLLER_FREQUENCY);
 
     if (flag_enable_adc_calibrator)
     {
@@ -175,6 +199,24 @@ void ctl_mainloop(void)
     return;
 }
 
+void gmp_pil_sim_step(const gmp_sim_rx_buf_t* rx, gmp_sim_tx_buf_t* tx)
+{
+#if defined ENABLE_GMP_DL_PIL_SIM
+    ctl_input_callback_pil(rx);
+
+    ctl_dispatch();
+
+    ctl_output_callback_pil(tx);
+#endif // defined ENABLE_GMP_DL_PIL_SIM
+}
+
+#if defined ENABLE_GMP_DL_PIL_SIM
+time_gt gmp_base_get_ctrl_tick(void)
+{
+    return inv_ctrl.isr_tick / ((uint32_t)CONTROLLER_FREQUENCY / 1000);
+}
+#endif // defined ENABLE_GMP_DL_PIL_SIM
+
 //=================================================================================================
 // CiA402 default callback routine
 
@@ -191,6 +233,7 @@ void ctl_disable_pwm()
     ctl_clear_gfl_inv(&inv_ctrl);
     ctl_clear_neg_inv(&neg_current_ctrl);
     ctl_clear_gfl_pq(&pq_ctrl);
+    pq_loop_tick = 0;
 }
 
 fast_gt ctl_check_pll_locked(void)
@@ -341,21 +384,3 @@ fast_gt ctl_exec_adc_calibration(void)
     // skip calibrate routine
     return 1;
 }
-
-void gmp_pil_sim_step(const gmp_sim_rx_buf_t* rx, gmp_sim_tx_buf_t* tx)
-{
-#if defined ENBALE_GMP_DL_PIL_SIM
-    ctl_input_callback_pil(rx);
-
-    ctl_dispatch();
-
-    ctl_output_callback_pil(tx);
-#endif // defined ENBALE_GMP_DL_PIL_SIM
-}
-
-#if defined ENBALE_GMP_DL_PIL_SIM
-time_gt gmp_base_get_ctrl_tick(void)
-{
-    return inv_ctrl.isr_tick/((uint32_t)CONTROLLER_FREQUENCY/1000);
-}
-#endif // defined ENBALE_GMP_DL_PIL_SIM

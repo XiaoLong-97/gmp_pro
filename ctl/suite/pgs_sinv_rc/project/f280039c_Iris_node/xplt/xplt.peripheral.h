@@ -22,6 +22,7 @@ extern "C"
 
 // select ADC PTR interface
 #include <ctl/component/interface/adc_ptr_channel.h>
+#include <ctl/component/interface/adc_channel.h>
 
 #include <core/dev/datalink.h>
 
@@ -44,6 +45,8 @@ extern ctrl_gt dlog_mem1[DLOG_MEM_LENGTH];
 extern ctrl_gt dlog_mem2[DLOG_MEM_LENGTH];
 
 void reset_controller(void);
+void flush_dl_tx_buffer(void);
+void flush_dl_rx_buffer(void);
 
 #ifdef __cplusplus
 }
