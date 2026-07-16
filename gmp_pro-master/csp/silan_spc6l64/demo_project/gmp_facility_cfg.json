@@ -1,0 +1,12 @@
+{
+    "gmp_core": true,
+    "gmp_ctl_core": true,
+    "gmp_ctl_motor_control": true,
+    "gmp_ctl_digital_power": false,
+    "gmp_csp_windows": false,
+    "gmp_csp_c28x": false,
+    "gmp_csp_null": false,
+    "gmp_csp_stm32": false,
+    "gmp_csp_silan_spc6l64 (without chip driver)": true,
+    "gmp_source_dic_file": "gmp_source_dic.json"
+}

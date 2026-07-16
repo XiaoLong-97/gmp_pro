@@ -1,0 +1,17 @@
+JS Auxiliary 8/26/2024 2:15:11 AM
+https://login.mathworks.com/embedded-login/v2/status/redirect?origin=https%3A%2F%2Fww2.mathworks.cn&forward=https%3A%2F%2Fww2.mathworks.cn%2Fhelp%2Fecoder%2Fug%2Fmessage-communication.html
+
+JS Auxiliary 8/26/2024 2:17:01 AM
+https://www.matlabsolutions.com/resources/connection-between-two-pcs-with-simulink.php
+
+DymeCeoe·JavnSon·Li 8/26/2024 2:25:26 AM
+https://ww2.mathworks.cn/help/rtw/ug/external-mode-simulation-with-xcp-communication.html#mw_332927e2-b0cc-4127-ba7b-b75b153c2e6b
+
+DymeCeoe·JavnSon·Li 8/26/2024 6:28:13 PM
+https://www.cnblogs.com/xiaohai123/p/16492802.html
+
+
+https://ww2.mathworks.cn/help/rtw/ug/external-mode-simulation-with-xcp-communication.html#mw_332927e2-b0cc-4127-ba7b-b75b153c2e6b
+
+https://ww2.mathworks.cn/help/rtw/ug/creating-a-tcp-ip-transport-layer-for-external-communication.html
+

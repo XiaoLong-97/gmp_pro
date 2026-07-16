@@ -1,0 +1,34 @@
+[submodule "third_party/lwip"]
+	path = third_party/lwip
+	url = https://github.com/lwip-tcpip/lwip.git
+	
+# Math Submodule
+[submodule "third_party/eigen"]
+	path = third_party/eigen
+	url = https://github.com/PX4/eigen.git
+	
+[submodule "third_party/TinyMPC"]
+	path = third_party/TinyMPC
+	url = https://github.com/TinyMPC/TinyMPC.git
+
+# File system submodule
+[submodule "third_party/fatfs"]
+	path = third_party/fatfs
+	url = https://github.com/abbrev/fatfs.git
+
+[submodule "third_party/littlefs"]
+	path = third_party/littlefs
+	url = https://github.com/littlefs-project/littlefs.git
+
+# Debugger
+[submodule "third_party/tinyxml2"]
+	path = third_party/tinyxml2
+	url = https://github.com/leethomason/tinyxml2
+
+# utilities
+[submodule "third_party/gsl"]
+	path = third_party/gsl
+	url = https://github.com/ampl/gsl
+[submodule "ext"]
+	path = ext
+	url = https://github.com/javnson/GMP_EXT

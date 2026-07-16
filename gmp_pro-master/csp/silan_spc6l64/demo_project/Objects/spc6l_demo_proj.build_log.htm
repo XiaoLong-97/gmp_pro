@@ -1,0 +1,86 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: ¦ÌVision V5.38.0.0
+Copyright (C) 2022 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: 1 javnson, 2, LIC=65ISZ-JSXB1-RA5DM-XV92H-TL52X-6TCUC
+ 
+Tool Versions:
+Toolchain:       MDK-ARM Plus  Version: 5.38.0.0
+Toolchain Path:  C:\Keil_v5\ARM\ARMCCV5\Bin
+C Compiler:      Armcc.exe V5.06 update 6 (build 750)
+Assembler:       Armasm.exe V5.06 update 6 (build 750)
+Linker/Locator:  ArmLink.exe V5.06 update 6 (build 750)
+Library Manager: ArmAr.exe V5.06 update 6 (build 750)
+Hex Converter:   FromElf.exe V5.06 update 6 (build 750)
+CPU DLL:         SARMCM3.DLL V5.38.0.0
+Dialog DLL:      DARMCM1.DLL V1.19.6.0
+Target DLL:      UL2CM3.DLL V1.164.8.0
+Dialog DLL:      TARMCM1.DLL V1.14.6.0
+ 
+<h2>Project:</h2>
+E:\lib\gmp_pro\csp\silan_spc6l64\demo_project\spc6l_demo_proj.uvprojx
+Project File Date:  04/27/2025
+
+<h2>Output:</h2>
+*** Using Compiler 'V5.06 update 6 (build 750)', folder: 'C:\Keil_v5\ARM\ARMCCV5\Bin'
+Build target 'SPC6L64'
+compiling ctl_component_continuous.c...
+compiling ctl_component_advance.c...
+compiling ctl_component_lebesgue.c...
+compiling ctl_component_interface.c...
+compiling ctl_mc_basic.c...
+compiling ctl_component_discrete.c...
+compiling ctl_mc_current_loop.c...
+compiling user_main.c...
+user\user_main.c(18): warning:  #1207-D: unknown attribute "optnone"
+  void init(void) GMP_NO_OPT_SUFFIX
+user\user_main.c: 1 warning, 0 errors
+compiling gmp_std_error_code.c...
+compiling gmp_mm_block_memory.c...
+compiling gmp_dev_util.c...
+compiling ctl_main.c...
+compiling spc6l64b_csp.c...
+compiling ctl_mc_consultant.c...
+compiling ctl_component_protection.c...
+compiling gmp_std_port.c...
+compiling ctl_mc_motion.c...
+compiling ctl_mc_observer.c...
+compiling ctl_nano.c...
+compiling xplt.peripheral.c...
+linking...
+Program Size: Code=10854 RO-data=2542 RW-data=60 ZI-data=2596  
+".\Objects\spc6l_demo_proj.axf" - 0 Error(s), 1 Warning(s).
+
+<h2>Software Packages used:</h2>
+
+Package Vendor: ARM
+                http://www.keil.com/pack/ARM.CMSIS.5.9.0.pack
+                ARM.CMSIS.5.9.0
+                CMSIS (Common Microcontroller Software Interface Standard)
+   * Component: CORE Version: 5.6.0
+
+Package Vendor: SILAN
+                https://github.com/Silanpack/Pack/raw/main/SILAN.SPC6Lxx_DFP.1.0.1.pack
+                SILAN.SPC6Lxx_DFP.1.0.1
+                Silan SPC6Lxx Device Family Pack
+   * Component: Startup Version: 1.0.0
+
+<h2>Collection of Component include folders:</h2>
+  ./RTE/_SPC6L64
+  C:/Users/javnson/AppData/Local/Arm/Packs/ARM/CMSIS/5.9.0/CMSIS/Core/Include
+  C:/Users/javnson/AppData/Local/Arm/Packs/SILAN/SPC6Lxx_DFP/1.0.1/Device/Include
+
+<h2>Collection of Component Files used:</h2>
+
+   * Component: ARM::CMSIS:CORE:5.6.0
+
+   * Component: SILAN::Device:Startup:1.0.0
+      Source file:   Device/Source/ARM/startup_SPC6Lxx.s
+      Source file:   Device/Source/system_SPC6Lxx.c
+Build Time Elapsed:  00:00:01
+</pre>
+</body>
+</html>

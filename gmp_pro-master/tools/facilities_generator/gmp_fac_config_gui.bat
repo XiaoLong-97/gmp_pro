@@ -1,0 +1,1 @@
+python ./gmp_fac_config_gui.py
